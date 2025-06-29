@@ -16,7 +16,7 @@
 
 #define HAS_ARG(x,y) (!strcmp(argv[i], x) && (i + y) < argc)
 
-using namespace tihmstar::offsetfinder64;
+using namespace tihmstar::ibootpatcher;
 
 #define FLAG_UNLOCK_NVRAM (1 << 0)
 
@@ -49,8 +49,14 @@ int main(int argc, const char * argv[]) {
     }
     
     std::vector<patch> patches;
+
+    // patchfinder::ibootpatchfinder *ibpf = nullptr;
+    // cleanup([&]{
+    //     safeDelete(ibpf);
+    // });
     
-    ibootpatchfinder64 *ibp = ibootpatchfinder64::make_ibootpatchfinder64(argv[1]);
+    patchfinder::ibootpatchfinder *ibp = patchfinder::ibootpatchfinder64::make_ibootpatchfinder64(argv[1]);
+    // patchfinder::ibootpatchfinder *ibp = patchfinder::ibootpatchfinder64::make_ibootpatchfinder64(iBootBuf,iBootBufSize)
     
     /* Check to see if the loader has a kernel load routine before trying to apply custom boot args + debug-enabled override. */
     if(ibp->has_kernel_load()) {
