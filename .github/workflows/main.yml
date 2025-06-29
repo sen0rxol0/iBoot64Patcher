@@ -11,7 +11,7 @@ jobs:
     runs-on: ${{ matrix.platform }}
     env:
       BUILDROOT: "buildroot_${{ matrix.platform }}"
-      GIT_DEPENDENCIES: tihmstar/libgeneral,tihmstar/libinsn,tihmstar/libplist,tihmstar/img3tool,tihmstar/img4tool,tihmstar/libpatchfinder
+      GIT_DEPENDENCIES: tihmstar/libgeneral,tihmstar/libinsn,tihmstar/libplist,tihmstar/img3tool,tihmstar/img4tool,sen0rxol0/libpatchfinder
       MAC_DYNAMIC_LIBS: openssl
     
     steps:
