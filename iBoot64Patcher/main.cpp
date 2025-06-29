@@ -48,18 +48,8 @@ int main(int argc, const char * argv[]) {
             sscanf((char*) argv[i+2], "0x%016llX", &cmd_handler_ptr);
         }
     }
-
-    int fd = 0;
-    uint8_t *buf = NULL;
-    struct stat fs = {0};
-    size_t bufSize = 0;
-  
-    if ((fd = open(argv[1], O_RDONLY)) != -1) {
-        buf = (uint8_t*)malloc(bufSize = fs.st_size);
-        read(fd, (void*)buf, bufSize);
-    }
     
-    ibootpatchfinder *ibpf = ibootpatchfinder64::make_ibootpatchfinder64(buf, bufSize, true);
+    ibootpatchfinder *ibpf = ibootpatchfinder64::make_ibootpatchfinder64(argv[1]);
 
     std::vector<patch> patches;
     
@@ -139,6 +129,19 @@ int main(int argc, const char * argv[]) {
         printf("%s: Unable to open %s!\n", __FUNCTION__, argv[2]);
         return -1;
     }
+        
+    // int fd = 0;
+    //uint8_t *buf = NULL;
+    //struct stat fs = {0};
+    //size_t bufSize = 0;
+    
+    // if ((fd = open(argv[1], O_RDONLY)) != -1) {
+        // buf = (uint8_t*)malloc(bufSize = fs.st_size);
+        // read(fd, (void*)buf, bufSize);
+    // }
+
+    uint8_t *buf = ibpf->buf();
+    size_t bufSize = ibpf->bufSize();
     
     for (auto p : patches) {
         printf("applying patch=%p : ",p._location);
