@@ -16,7 +16,7 @@
 
 #define HAS_ARG(x,y) (!strcmp(argv[i], x) && (i + y) < argc)
 
-using namespace tihmstar::ibootpatcher;
+using namespace tihmstar::patchfinder;
 
 #define FLAG_UNLOCK_NVRAM (1 << 0)
 
