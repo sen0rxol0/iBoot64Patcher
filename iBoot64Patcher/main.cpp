@@ -63,8 +63,8 @@ int main(int argc, const char * argv[]) {
         if(custom_boot_args) {
             try {
                 printf("getting get_boot_arg_patch(%s) patch\n",custom_boot_args);
-                auto p = ibp->get_boot_arg_patch(custom_boot_args);
-                patches.insert(patches.begin(), p.begin(), p.end());
+                auto patch = ibp->get_boot_arg_patch(custom_boot_args);
+                patches.insert(patches.begin(), patch.begin(), patch.end());
             } catch (tihmstar::exception &e) {
                 printf("%s: Error doing patch_boot_args()!\n", __FUNCTION__);
                 return -1;
@@ -75,8 +75,8 @@ int main(int argc, const char * argv[]) {
         /* Only bootloaders with the kernel load routines pass the DeviceTree. */
         try {
             printf("getting get_debug_enabled_patch() patch\n");
-            auto p = ibp->get_debug_enabled_patch();
-            patches.insert(patches.begin(), p.begin(), p.end());
+            auto patch = ibp->get_debug_enabled_patch();
+            patches.insert(patches.begin(), patch.begin(), patch.end());
         } catch (...) {
             printf("%s: Error doing patch_debug_enabled()!\n", __FUNCTION__);
             return -1;
@@ -88,8 +88,8 @@ int main(int argc, const char * argv[]) {
         if (cmd_handler_str && cmd_handler_ptr) {
             try {
                 printf("getting get_cmd_handler_patch(%s,0x%016llx) patch\n",cmd_handler_str,cmd_handler_ptr);
-                auto p = ibp->get_cmd_handler_patch(cmd_handler_str, cmd_handler_ptr);
-                patches.insert(patches.begin(), p.begin(), p.end());
+                auto patch = ibp->get_cmd_handler_patch(cmd_handler_str, cmd_handler_ptr);
+                patches.insert(patches.begin(), patch.begin(), patch.end());
             } catch (...) {
                 printf("%s: Error doing patch_cmd_handler()!\n", __FUNCTION__);
                 return -1;
@@ -99,8 +99,8 @@ int main(int argc, const char * argv[]) {
         if (flags & FLAG_UNLOCK_NVRAM) {
             try {
                 printf("getting get_unlock_nvram_patch() patch\n");
-                auto p = ibp->get_unlock_nvram_patch();
-                patches.insert(patches.begin(), p.begin(), p.end());
+                auto patch = ibp->get_unlock_nvram_patch();
+                patches.insert(patches.begin(), patch.begin(), patch.end());
             } catch (...) {
                 printf("%s: Error doing get_unlock_nvram_patch()!\n", __FUNCTION__);
                 return -1;
@@ -111,8 +111,8 @@ int main(int argc, const char * argv[]) {
     /* All loaders have the RSA check. */
     try {
         printf("getting get_sigcheck_patch() patch\n");
-        auto p = ibp->get_sigcheck_patch();
-        patches.insert(patches.begin(), p.begin(), p.end());
+        auto patch = ibp->get_sigcheck_patch();
+        patches.insert(patches.begin(), patch.begin(), patch.end());
     } catch (...) {
         printf("%s: Error doing patch_rsa_check()!\n", __FUNCTION__);
         return -1;
@@ -127,18 +127,26 @@ int main(int argc, const char * argv[]) {
     }
     
     for (auto p : patches) {
-        char *buf = (char*)ibp->buf();
-        offset_t off = (offset_t)(p._location - ibp->find_base());
+       
         printf("applying patch=%p : ",p._location);
         for (int i=0; i<p._patchSize; i++) {
-            printf("%02x",((uint8_t*)p._patch)[i]);
+            // printf("%02x",((uint8_t*)p._patch)[i]);
+            printf("%02x",((uint8_t*)p.getPatch())[i]);
         }
         printf("\n");
-        memcpy(&buf[off], p._patch, p._patchSize);
+
+         char *buf = (char*)ibp->buf();
+        // offset_t off = (offset_t)(p._location - ibp->find_base());
+        uint64_t off = (uint64_t)(p._location - ibpf->find_base());
+        
+        memcpy(&buf[off], p.getPatch(), p.getPatchSize());
+
+        // uint8_t *pbuf = (uint8_t*)iBootBuf;
+        // memcpy(&pbuf[off], p.getPatch(), p.getPatchSize());
     }
     
     printf("%s: Writing out patched file to %s...\n", __FUNCTION__, argv[2]);
-    fwrite(ibp->buf(), ibp->bufSize(), 1, fp);
+    fwrite(ibp->buf(), ibp->size(), 1, fp);
     
     fflush(fp);
     fclose(fp);
