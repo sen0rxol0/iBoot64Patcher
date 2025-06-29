@@ -7,7 +7,7 @@ jobs:
 
     strategy:
       matrix:
-        platform: [ubuntu-latest, macos-latest]
+        platform: [ubuntu-latest, macos-latest, macos-13]
     runs-on: ${{ matrix.platform }}
     env:
       BUILDROOT: "buildroot_${{ matrix.platform }}"
@@ -118,12 +118,18 @@ jobs:
       with:
         name: buildroot_macos-latest
         path: buildroot_macos-latest
+    - name: Download macos Intel artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: buildroot_macos-13
+        path: buildroot_macos-13
     - name: Set env vars and zip
       run: |
         echo "::set-env name=BUILD_VERSION_NUM::$(echo "$(git rev-list --count HEAD | tr -d '\n')")"
         echo "::set-env name=BUILD_VERSION_SHA::$(echo "$(git rev-parse HEAD | tr -d '\n'])")"
         echo "::set-env name=BUILD_VERSION_STR::$(echo "$(git rev-list --count HEAD | tr -d '\n')-$(git rev-parse HEAD | tr -d '\n'])")"
         echo "::set-env name=COMMIT_MSG::$(echo "$(git log -1 --pretty=%B)")"
+        zip -r buildroot_macos-13.zip buildroot_macos-13
         zip -r buildroot_macos-latest.zip buildroot_macos-latest
         zip -r buildroot_ubuntu-latest.zip buildroot_ubuntu-latest
     - name: Create Release
