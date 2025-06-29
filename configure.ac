@@ -25,8 +25,8 @@ CFLAGS+=" -std=c11"
 # Versioning.
 
 # Checks for libraries.
-LIBGENERAL_REQUIRES_STR="libgeneral >= 28"
-LIBPATCHFINDER_REQUIRES_STR="libpatchfinder >= 118"
+LIBGENERAL_REQUIRES_STR="libgeneral >= 75"
+LIBPATCHFINDER_REQUIRES_STR="libpatchfinder >= 148"
 PKG_CHECK_MODULES(libgeneral, $LIBGENERAL_REQUIRES_STR)
 PKG_CHECK_MODULES(libpatchfinder, $LIBPATCHFINDER_REQUIRES_STR)
 
