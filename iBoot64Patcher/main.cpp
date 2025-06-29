@@ -10,7 +10,9 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <liboffsetfinder64/ibootpatchfinder64.hpp>
+//#include <liboffsetfinder64/ibootpatchfinder64.hpp>
+#include <libpatchfinder/ibootpatchfinder/ibootpatchfinder32.hpp>
+#include <libpatchfinder/ibootpatchfinder/ibootpatchfinder64.hpp>
 
 #define HAS_ARG(x,y) (!strcmp(argv[i], x) && (i + y) < argc)
 
