@@ -47,16 +47,27 @@ int main(int argc, const char * argv[]) {
             sscanf((char*) argv[i+2], "0x%016llX", &cmd_handler_ptr);
         }
     }
+
+    int fd = 0;
+    uint8_t *buf = NULL;
+    struct stat fs = {0};
+    size_t bufSize = 0;
+  
+    if ((fd = open(argv[1], O_RDONLY)) != -1) {
+        buf = (uint8_t*)malloc(bufSize = fs.st_size)
+        read(fd, (void*)buf, bufSize)  
+    }
     
     std::vector<patch> patches;
-
+    
     // patchfinder::ibootpatchfinder *ibpf = nullptr;
     // cleanup([&]{
     //     safeDelete(ibpf);
     // });
     
-    ibootpatchfinder *ibpf = ibootpatchfinder64::make_ibootpatchfinder64(argv[1]);
+    // ibootpatchfinder *ibpf = ibootpatchfinder64::make_ibootpatchfinder64(argv[1]);
     // patchfinder::ibootpatchfinder *ibpf = patchfinder::ibootpatchfinder64::make_ibootpatchfinder64(iBootBuf,iBootBufSize)
+    ibootpatchfinder *ibpf = ibootpatchfinder64::make_ibootpatchfinder64(buf, bufSize, true);
     
     /* Check to see if the loader has a kernel load routine before trying to apply custom boot args + debug-enabled override. */
     if(ibpf->has_kernel_load()) {
@@ -125,23 +136,23 @@ int main(int argc, const char * argv[]) {
         printf("%s: Unable to open %s!\n", __FUNCTION__, argv[2]);
         return -1;
     }
+
+    
+    // char *buf = (char*)ibpf->buf();
     
     for (auto p : patches) {
-       
         printf("applying patch=%p : ",p._location);
         for (int i=0; i<p.getPatchSize(); i++) {
             // printf("%02x",((uint8_t*)p._patch)[i]);
             printf("%02x",((uint8_t*)p.getPatch())[i]);
         }
         printf("\n");
-
-        char *buf = (char*)ibpf->data();
         uint64_t off = (uint64_t)(p._location - ibpf->find_base());
         memcpy(&buf[off], p.getPatch(), p.getPatchSize());
     }
     
     printf("%s: Writing out patched file to %s...\n", __FUNCTION__, argv[2]);
-    fwrite(ibpf->data(), ibpf->size(), 1, fp);
+    fwrite(buf, bufSize, 1, fp);
     
     fflush(fp);
     fclose(fp);
