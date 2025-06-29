@@ -59,24 +59,26 @@ jobs:
         }
         mkdir depdir
         cd depdir
-        mkdir $BUILDROOT
+        
+        if [ "$RUNNER_OS" == "macOS" ]; then
+          builddir="buildroot-macos-latest"
+        else
+          builddir=$BUILDROOT
+        fi
+        
+        mkdir $builddir
         IFS=',' read -r -a deparray <<< "$GIT_DEPENDENCIES"; for d in ${deparray[@]}; do        
           echo "Got dependency: $d"
           r=$(echo $d | cut -d '/' -f 2)
           echo "Got reponame: $r"
           tag=$(get_latest_release $d);
           echo "Found tag: $tag"
-          if [ "$RUNNER_OS" == "macOS" ]; then
-            wget "https://github.com/$d/releases/download/$tag/buildroot_macos-latest.zip"
-            mv buildroot_macos-latest.zip "$BUILDROOT.zip"
-          else
-            wget "https://github.com/$d/releases/download/$tag/$BUILDROOT.zip"
-          fi
-          unzip -u "$BUILDROOT.zip"
-          rm "$BUILDROOT.zip"
+          wget "https://github.com/$d/releases/download/$tag/$builddir.zip"
+          unzip -u "$builddir.zip"
+          rm "$builddir.zip"
         done
         echo "moving dependencies to /"
-        sudo cp -r $BUILDROOT/* /
+        sudo cp -r $builddir/* /
         cd ..
         rm -rf depdir
     - name: autogen
