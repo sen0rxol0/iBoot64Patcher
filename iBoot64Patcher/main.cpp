@@ -55,7 +55,7 @@ int main(int argc, const char * argv[]) {
     //     safeDelete(ibpf);
     // });
     
-    patchfinder::ibootpatchfinder *ibp = patchfinder::ibootpatchfinder64::make_ibootpatchfinder64(argv[1]);
+    ibootpatchfinder *ibp = ibootpatchfinder64::make_ibootpatchfinder64(argv[1]);
     // patchfinder::ibootpatchfinder *ibp = patchfinder::ibootpatchfinder64::make_ibootpatchfinder64(iBootBuf,iBootBufSize)
     
     /* Check to see if the loader has a kernel load routine before trying to apply custom boot args + debug-enabled override. */
