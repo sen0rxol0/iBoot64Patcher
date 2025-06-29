@@ -52,33 +52,38 @@ jobs:
       env: 
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        get_latest_release() {
-          curl --silent --header 'authorization: Bearer ${{ secrets.GITHUB_TOKEN }}' "https://api.github.com/repos/$1/releases/latest" | # Get latest release from GitHub api
-          grep '"tag_name":' |                                            # Get tag line
-          rev | cut -d '"' -f2 | rev                                   # Pluck JSON value
-        }
         mkdir depdir
         cd depdir
         
-        if [ "$RUNNER_OS" == "macOS" ]; then
-          builddir="buildroot_macos-latest"
-        else
-          builddir=$BUILDROOT
-        fi
+        #if [ "$RUNNER_OS" == "macOS" ]; then
+        #  builddir="buildroot_macos-latest"
+        #else
+        #  builddir=$BUILDROOT
+        #fi
         
-        mkdir $builddir
+        #mkdir $builddir
+        
         IFS=',' read -r -a deparray <<< "$GIT_DEPENDENCIES"; for d in ${deparray[@]}; do        
           echo "Got dependency: $d"
           r=$(echo $d | cut -d '/' -f 2)
           echo "Got reponame: $r"
-          tag=$(get_latest_release $d);
-          echo "Found tag: $tag"
-          wget "https://github.com/$d/releases/download/$tag/$builddir.zip"
-          unzip -u "$builddir.zip"
-          rm "$builddir.zip"
+          
+          # tag=$(get_latest_release $d);
+          # echo "Found tag: $tag"
+          # wget "https://github.com/$d/releases/download/$tag/$builddir.zip"
+          # unzip -u "$builddir.zip"
+          # rm "$builddir.zip"
+          
+          git clone "https://github.com/$d.git" "$r"
+          cd "$r"
+          ./autogen.sh --enable-static --disable-shared
+          make
+          sudo make install
+          cd ../
+          rm -rf "$r"
         done
-        echo "moving dependencies to /"
-        sudo cp -r $builddir/* /
+        # echo "moving dependencies to /"
+        # sudo cp -r $builddir/* /
         cd ..
         rm -rf depdir
     - name: autogen
