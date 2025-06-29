@@ -1,6 +1,6 @@
-AM_CFLAGS = $(GLOBAL_CFLAGS) $(libgeneral_CFLAGS) $(liboffsetfinder64_CFLAGS)
+AM_CFLAGS = $(GLOBAL_CFLAGS) $(libgeneral_CFLAGS) $(libpatchfinder_CFLAGS)
 AM_CXXFLAGS = $(AM_CFLAGS) $(GLOBAL_CXXFLAGS)
-AM_LDFLAGS = $(libgeneral_LIBS) $(liboffsetfinder64_LIBS)
+AM_LDFLAGS = $(libgeneral_LIBS) $(libpatchfinder_LIBS)
 
 bin_PROGRAMS = iBoot64Patcher
 
