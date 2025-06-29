@@ -61,7 +61,7 @@ jobs:
         cd depdir
         
         if [ "$RUNNER_OS" == "macOS" ]; then
-          builddir="buildroot-macos-latest"
+          builddir="buildroot_macos-latest"
         else
           builddir=$BUILDROOT
         fi
