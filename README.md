@@ -1,1 +1,0 @@
-# Deprecated in favor of https://github.com/tihmstar/ra1nsn0w/tree/master/tools/iBootPatcher
