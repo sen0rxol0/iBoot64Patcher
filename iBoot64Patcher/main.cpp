@@ -54,8 +54,8 @@ int main(int argc, const char * argv[]) {
     size_t bufSize = 0;
   
     if ((fd = open(argv[1], O_RDONLY)) != -1) {
-        buf = (uint8_t*)malloc(bufSize = fs.st_size)
-        read(fd, (void*)buf, bufSize)  
+        buf = (uint8_t*)malloc(bufSize = fs.st_size);
+        read(fd, (void*)buf, bufSize);
     }
     
     std::vector<patch> patches;
