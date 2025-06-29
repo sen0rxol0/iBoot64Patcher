@@ -15,7 +15,7 @@ jobs:
       MAC_DYNAMIC_LIBS: openssl,libplist
     
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v4
     - name: prepre buildroot
       run: mkdir $BUILDROOT
     - name:  Install pre-dependencies
@@ -92,7 +92,7 @@ jobs:
         fi
     - name: make install
       run: make DESTDIR=$GITHUB_WORKSPACE/$BUILDROOT install
-    - uses: actions/upload-artifact@v1
+    - uses: actions/upload-artifact@v4
       with:
         name: ${{ env.BUILDROOT }}
         path: ${{ env.BUILDROOT }}
@@ -102,14 +102,14 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v4
     - name: Download ubuntu artifact
-      uses: actions/download-artifact@v1
+      uses: actions/download-artifact@v4
       with:
         name: buildroot_ubuntu-latest   
         path: buildroot_ubuntu-latest    
     - name: Download macos artifact
-      uses: actions/download-artifact@v1
+      uses: actions/download-artifact@v4
       with:
         name: buildroot_macos-latest
         path: buildroot_macos-latest
