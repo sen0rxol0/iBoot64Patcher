@@ -10,7 +10,6 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
-//#include <liboffsetfinder64/ibootpatchfinder64.hpp>
 #include <libpatchfinder/ibootpatchfinder/ibootpatchfinder32.hpp>
 #include <libpatchfinder/ibootpatchfinder/ibootpatchfinder64.hpp>
 
@@ -50,6 +49,9 @@ int main(int argc, const char * argv[]) {
 
     int fd = 0;
     uint8_t *buf = NULL;
+    cleanup([&]{
+        if (fd>0) close(fd);
+    })
     struct stat fs = {0};
     size_t bufSize = 0;
   
@@ -58,16 +60,14 @@ int main(int argc, const char * argv[]) {
         read(fd, (void*)buf, bufSize);
     }
     
+    ibootpatchfinder *ibpf = nullptr;
+    cleanup([&]{
+        safeDelete(ibpf);
+    });
+    
+    ibpf = ibootpatchfinder64::make_ibootpatchfinder64(buf, bufSize, true);
+
     std::vector<patch> patches;
-    
-    // patchfinder::ibootpatchfinder *ibpf = nullptr;
-    // cleanup([&]{
-    //     safeDelete(ibpf);
-    // });
-    
-    // ibootpatchfinder *ibpf = ibootpatchfinder64::make_ibootpatchfinder64(argv[1]);
-    // patchfinder::ibootpatchfinder *ibpf = patchfinder::ibootpatchfinder64::make_ibootpatchfinder64(iBootBuf,iBootBufSize)
-    ibootpatchfinder *ibpf = ibootpatchfinder64::make_ibootpatchfinder64(buf, bufSize, true);
     
     /* Check to see if the loader has a kernel load routine before trying to apply custom boot args + debug-enabled override. */
     if(ibpf->has_kernel_load()) {
@@ -101,8 +101,8 @@ int main(int argc, const char * argv[]) {
                 printf("getting get_cmd_handler_patch(%s,0x%016llx) patch\n",cmd_handler_str,cmd_handler_ptr);
                 auto patch = ibpf->get_cmd_handler_patch(cmd_handler_str, cmd_handler_ptr);
                 patches.insert(patches.begin(), patch.begin(), patch.end());
-            } catch (...) {
-                printf("%s: Error doing patch_cmd_handler()!\n", __FUNCTION__);
+            } catch (tihmstar::exception &e) {
+                printf("%s: Error doing patch_cmd_handler()! (%s)\n", __FUNCTION__, e.what());
                 return -1;
             }
         }
@@ -112,8 +112,17 @@ int main(int argc, const char * argv[]) {
                 printf("getting get_unlock_nvram_patch() patch\n");
                 auto patch = ibpf->get_unlock_nvram_patch();
                 patches.insert(patches.begin(), patch.begin(), patch.end());
-            } catch (...) {
-                printf("%s: Error doing get_unlock_nvram_patch()!\n", __FUNCTION__);
+            } catch (tihmstar::exception &e) {
+                printf("%s: Error doing get_unlock_nvram_patch()! (%s)\n", __FUNCTION__, e.what());
+                return -1;
+            }
+
+            try {
+                printf("getting get_freshnonce_patch() patch\n");
+                auto patch = ibpf->get_freshnonce_patch();
+                patches.insert(patches.begin(), patch.begin(), patch.end());
+            } catch (tihmstar::exception &e) {
+                printf("%s: Error doing get_freshnonce_patch()! (%s)\n", __FUNCTION__, e.what());
                 return -1;
             }
         }
@@ -124,8 +133,8 @@ int main(int argc, const char * argv[]) {
         printf("getting get_sigcheck_patch() patch\n");
         auto patch = ibpf->get_sigcheck_patch();
         patches.insert(patches.begin(), patch.begin(), patch.end());
-    } catch (...) {
-        printf("%s: Error doing patch_rsa_check()!\n", __FUNCTION__);
+    } catch (tihmstar::exception &e) {
+        printf("%s: Error doing patch_rsa_check()! (%s)\n", __FUNCTION__, e.what());
         return -1;
     }
     
