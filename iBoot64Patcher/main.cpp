@@ -55,15 +55,15 @@ int main(int argc, const char * argv[]) {
     //     safeDelete(ibpf);
     // });
     
-    ibootpatchfinder *ibp = ibootpatchfinder64::make_ibootpatchfinder64(argv[1]);
-    // patchfinder::ibootpatchfinder *ibp = patchfinder::ibootpatchfinder64::make_ibootpatchfinder64(iBootBuf,iBootBufSize)
+    ibootpatchfinder *ibpf = ibootpatchfinder64::make_ibootpatchfinder64(argv[1]);
+    // patchfinder::ibootpatchfinder *ibpf = patchfinder::ibootpatchfinder64::make_ibootpatchfinder64(iBootBuf,iBootBufSize)
     
     /* Check to see if the loader has a kernel load routine before trying to apply custom boot args + debug-enabled override. */
-    if(ibp->has_kernel_load()) {
+    if(ibpf->has_kernel_load()) {
         if(custom_boot_args) {
             try {
                 printf("getting get_boot_arg_patch(%s) patch\n",custom_boot_args);
-                auto patch = ibp->get_boot_arg_patch(custom_boot_args);
+                auto patch = ibpf->get_boot_arg_patch(custom_boot_args);
                 patches.insert(patches.begin(), patch.begin(), patch.end());
             } catch (tihmstar::exception &e) {
                 printf("%s: Error doing patch_boot_args()!\n", __FUNCTION__);
@@ -75,7 +75,7 @@ int main(int argc, const char * argv[]) {
         /* Only bootloaders with the kernel load routines pass the DeviceTree. */
         try {
             printf("getting get_debug_enabled_patch() patch\n");
-            auto patch = ibp->get_debug_enabled_patch();
+            auto patch = ibpf->get_debug_enabled_patch();
             patches.insert(patches.begin(), patch.begin(), patch.end());
         } catch (...) {
             printf("%s: Error doing patch_debug_enabled()!\n", __FUNCTION__);
@@ -84,11 +84,11 @@ int main(int argc, const char * argv[]) {
     }
     
     /* Ensure that the loader has a shell. */
-    if(ibp->has_recovery_console()) {
+    if(ibpf->has_recovery_console()) {
         if (cmd_handler_str && cmd_handler_ptr) {
             try {
                 printf("getting get_cmd_handler_patch(%s,0x%016llx) patch\n",cmd_handler_str,cmd_handler_ptr);
-                auto patch = ibp->get_cmd_handler_patch(cmd_handler_str, cmd_handler_ptr);
+                auto patch = ibpf->get_cmd_handler_patch(cmd_handler_str, cmd_handler_ptr);
                 patches.insert(patches.begin(), patch.begin(), patch.end());
             } catch (...) {
                 printf("%s: Error doing patch_cmd_handler()!\n", __FUNCTION__);
@@ -99,7 +99,7 @@ int main(int argc, const char * argv[]) {
         if (flags & FLAG_UNLOCK_NVRAM) {
             try {
                 printf("getting get_unlock_nvram_patch() patch\n");
-                auto patch = ibp->get_unlock_nvram_patch();
+                auto patch = ibpf->get_unlock_nvram_patch();
                 patches.insert(patches.begin(), patch.begin(), patch.end());
             } catch (...) {
                 printf("%s: Error doing get_unlock_nvram_patch()!\n", __FUNCTION__);
@@ -111,7 +111,7 @@ int main(int argc, const char * argv[]) {
     /* All loaders have the RSA check. */
     try {
         printf("getting get_sigcheck_patch() patch\n");
-        auto patch = ibp->get_sigcheck_patch();
+        auto patch = ibpf->get_sigcheck_patch();
         patches.insert(patches.begin(), patch.begin(), patch.end());
     } catch (...) {
         printf("%s: Error doing patch_rsa_check()!\n", __FUNCTION__);
@@ -129,24 +129,19 @@ int main(int argc, const char * argv[]) {
     for (auto p : patches) {
        
         printf("applying patch=%p : ",p._location);
-        for (int i=0; i<p._patchSize; i++) {
+        for (int i=0; i<p.getPatchSize(); i++) {
             // printf("%02x",((uint8_t*)p._patch)[i]);
             printf("%02x",((uint8_t*)p.getPatch())[i]);
         }
         printf("\n");
 
-         char *buf = (char*)ibp->buf();
-        // offset_t off = (offset_t)(p._location - ibp->find_base());
+        char *buf = (char*)ibpf->data();
         uint64_t off = (uint64_t)(p._location - ibpf->find_base());
-        
         memcpy(&buf[off], p.getPatch(), p.getPatchSize());
-
-        // uint8_t *pbuf = (uint8_t*)iBootBuf;
-        // memcpy(&pbuf[off], p.getPatch(), p.getPatchSize());
     }
     
     printf("%s: Writing out patched file to %s...\n", __FUNCTION__, argv[2]);
-    fwrite(ibp->buf(), ibp->size(), 1, fp);
+    fwrite(ibpf->data(), ibpf->size(), 1, fp);
     
     fflush(fp);
     fclose(fp);
