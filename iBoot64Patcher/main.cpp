@@ -141,14 +141,14 @@ int main(int argc, const char * argv[]) {
         return -1;
     }
 
-    size_t input_size = st.st_size;
-    char *input = (char *)calloc(1, input_size);
-    size_t ret = fread(input, 1, input_size, fp_input);
+    size_t buf_size = st.st_size;
+    char *buf = (char *)calloc(1, buf_size);
+    size_t ret = fread(buf, 1, buf_size, fp_input);
     
-    if (ret != input_size) {
-        printf("%s: Unable to read input file, read size %zu/%zu!\n", __FUNCTION__, ret, input_size);
+    if (ret != buf_size) {
+        printf("%s: Unable to read input file, read size %zu/%zu!\n", __FUNCTION__, ret, buf_size);
         fclose(fp_input);
-        free(input);
+        free(buf);
         return -1;
     }
     
@@ -168,14 +168,14 @@ int main(int argc, const char * argv[]) {
             printf("%02x",((uint8_t*)p.getPatch())[i]);
         }
         printf("\n");
-        uint64_t offset = (uint64_t)(p._location - ibpf->find_base());
-        memcpy(&input[offset], p.getPatch(), p.getPatchSize());
+        uint64_t o = (uint64_t)(p._location - ibpf->find_base());
+        memcpy(&buf[o], p.getPatch(), p.getPatchSize());
     }
     
     printf("%s: Writing out patched file to %s...\n", __FUNCTION__, output_path);
-    fwrite(input, input_size, 1, fp_output);
+    fwrite(buf, buf_size, 1, fp_output);
     fclose(fp_output);
-    free(input);
+    free(buf);
     printf("%s: Quitting...\n", __FUNCTION__);
     
     return 0;
