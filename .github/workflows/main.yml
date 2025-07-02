@@ -76,7 +76,7 @@ jobs:
           
           git clone "https://github.com/$d.git" "$r"
           cd "$r"
-          ./autogen.sh
+          ./autogen.sh --enable-static --disable-shared
           make
           sudo make install
           cd ../
