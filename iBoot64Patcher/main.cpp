@@ -8,8 +8,8 @@
 //  Edited by @sen0rxol0 on 29.06.25.
 //
 // Added libpatchfinder instead of liboffsetfinder64
-// Fixed build file in Actions
-// Added abd fixed get_freshnonce_patch(), thanls to Criptiic's fork
+// Fixed build in Actions
+// Added and fixed get_freshnonce_patch(), thanks to Cryptiiiic's fork
 // Added input file reading into a buffer
 // Improved file read and write code
 
@@ -18,7 +18,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <sys/stat.h>
-#include <libpatchfinder/ibootpatchfinder/ibootpatchfinder32.hpp>
+//#include <libpatchfinder/ibootpatchfinder/ibootpatchfinder32.hpp>
 #include <libpatchfinder/ibootpatchfinder/ibootpatchfinder64.hpp>
 
 #define HAS_ARG(x,y) (!strcmp(argv[i], x) && (i + y) < argc)
