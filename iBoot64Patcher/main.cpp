@@ -7,6 +7,11 @@
 //
 //  Edited by @sen0rxol0 on 29.06.25.
 //
+// Added libpatchfinder instead of liboffsetfinder64
+// Fixed build file in Actions
+// Added abd fixed get_freshnonce_patch(), thanls to Criptiic's fork
+// Added input file reading into a buffer
+// Improved file read and write code
 
 #include <stdio.h>
 #include <string.h>
@@ -52,8 +57,37 @@ int main(int argc, const char * argv[]) {
     
     const char *input_path = argv[1];
     const char *output_path = argv[2];
+
+    FILE *fp = nullptr;
+
+    /* Read decrypted input file into buffer... */
+    fp = fopen(input_path, "rb+");
     
-    ibootpatchfinder *ibpf = ibootpatchfinder64::make_ibootpatchfinder64(input_path);
+    if (!fp) {
+        printf("Unable to open %s!\n", input_path);
+        return -1;
+    }
+
+    struct stat st{0};
+    
+    if (stat(input_path, &st) < 0) {
+        printf("Error getting size for %s!\n", input_path);
+        return -1;
+    }
+
+    size_t buf_size = st.st_size;
+    void *iboot_buf = (void *) malloc(buf_size);
+    
+    if (!iboot_buf) {
+        printf("Out of memory while allocating region for %s!\n", input_path);
+        fclose(fp);
+        return -1;
+    }
+
+    fread(iboot_buf, 1, buf_size, fp);
+    fclose(fp);
+    
+    ibootpatchfinder *ibpf = ibootpatchfinder64::make_ibootpatchfinder64(iboot_buf, buf_size);
 
     std::vector<patch> patches;
     
@@ -65,7 +99,7 @@ int main(int argc, const char * argv[]) {
                 auto patch = ibpf->get_boot_arg_patch(custom_boot_args);
                 patches.insert(patches.begin(), patch.begin(), patch.end());
             } catch (tihmstar::exception &e) {
-                printf("%s: Error doing patch_boot_args()!\n", __FUNCTION__);
+                printf("Error doing patch_boot_args()!\n");
                 return -1;
             }
         }
@@ -77,7 +111,7 @@ int main(int argc, const char * argv[]) {
             auto patch = ibpf->get_debug_enabled_patch();
             patches.insert(patches.begin(), patch.begin(), patch.end());
         } catch (...) {
-            printf("%s: Error doing patch_debug_enabled()!\n", __FUNCTION__);
+            printf("Error doing patch_debug_enabled()!\n");
             return -1;
         }
     }
@@ -90,7 +124,7 @@ int main(int argc, const char * argv[]) {
                 auto patch = ibpf->get_cmd_handler_patch(cmd_handler_str, cmd_handler_ptr);
                 patches.insert(patches.begin(), patch.begin(), patch.end());
             } catch (tihmstar::exception &e) {
-                printf("%s: Error doing patch_cmd_handler()! (%s)\n", __FUNCTION__, e.what());
+                printf("Error doing patch_cmd_handler()! (%s)\n", e.what());
                 return -1;
             }
         }
@@ -101,7 +135,7 @@ int main(int argc, const char * argv[]) {
                 auto patch = ibpf->get_unlock_nvram_patch();
                 patches.insert(patches.begin(), patch.begin(), patch.end());
             } catch (tihmstar::exception &e) {
-                printf("%s: Error doing get_unlock_nvram_patch()! (%s)\n", __FUNCTION__, e.what());
+                printf("Error doing get_unlock_nvram_patch()! (%s)\n", e.what());
                 return -1;
             }
 
@@ -110,7 +144,7 @@ int main(int argc, const char * argv[]) {
                 auto patch = ibpf->get_freshnonce_patch();
                 patches.insert(patches.begin(), patch.begin(), patch.end());
             } catch (tihmstar::exception &e) {
-                printf("%s: Error doing get_freshnonce_patch()! (%s)\n", __FUNCTION__, e.what());
+                printf("Error doing get_freshnonce_patch()! (%s)\n", e.what());
                 return -1;
             }
         }
@@ -122,45 +156,10 @@ int main(int argc, const char * argv[]) {
         auto patch = ibpf->get_sigcheck_patch();
         patches.insert(patches.begin(), patch.begin(), patch.end());
     } catch (tihmstar::exception &e) {
-        printf("%s: Error doing patch_rsa_check()! (%s)\n", __FUNCTION__, e.what());
-        return -1;
-    }
-
-    /* Read decrypted input file into buffer... */
-    FILE* fp_input = fopen(input_path, "rb+");
-    
-    if (!fp_input) {
-        printf("%s: Unable to open %s!\n", __FUNCTION__, input_path);
+        printf("Error doing patch_rsa_check()! (%s)\n", e.what());
         return -1;
     }
     
-    struct stat st{0};
-    
-    if (stat(input_path, &st) < 0) {
-        printf("%s: Error getting size for %s!\n", __FUNCTION__, input_path);
-        return -1;
-    }
-
-    size_t buf_size = st.st_size;
-    char *buf = (char *)calloc(1, buf_size);
-    size_t ret = fread(buf, 1, buf_size, fp_input);
-    
-    if (ret != buf_size) {
-        printf("%s: Unable to read input file, read size %zu/%zu!\n", __FUNCTION__, ret, buf_size);
-        fclose(fp_input);
-        free(buf);
-        return -1;
-    }
-    
-    fclose(fp_input);
-    
-    /* Write out to the patched file... */
-    FILE* fp_output = fopen(output_path, "wb+");
-    
-    if(!fp_output) {
-        printf("%s: Unable to open file %s!\n", __FUNCTION__, output_path);
-        return -1;
-    }
     
     for (auto p : patches) {
         printf("applying patch=%p : ",p._location);
@@ -169,14 +168,23 @@ int main(int argc, const char * argv[]) {
         }
         printf("\n");
         uint64_t o = (uint64_t)(p._location - ibpf->find_base());
-        memcpy(&buf[o], p.getPatch(), p.getPatchSize());
+        memcpy(&iboot_buf[o], p.getPatch(), p.getPatchSize());
     }
     
-    printf("%s: Writing out patched file to %s...\n", __FUNCTION__, output_path);
-    fwrite(buf, buf_size, 1, fp_output);
-    fclose(fp_output);
-    free(buf);
-    printf("%s: Quitting...\n", __FUNCTION__);
+    /* Write out to the patched file... */
+   fp = fopen(output_path, "wb+");
+    
+    if(!fp) {
+        printf("Unable to open file %s!\n", output_path);
+        return -1;
+    }
+    
+    printf("Writing out patched file to %s...\n", output_path);
+    fwrite(iboot_buf, buf_size, 1, fp);
+    fflush(fp);
+    fclose(fp);
+    free(iboot_buf);
+    printf("Quitting...\n");
     
     return 0;
 }
