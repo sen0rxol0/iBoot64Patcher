@@ -1,13 +1,14 @@
 name: Buildrunner
 
-on: [push]
+on:
+  workflow_dispatch:
 
 jobs:
   build:
 
     strategy:
       matrix:
-        platform: [ubuntu-latest, macos-latest, macos-13]
+        platform: [ubuntu-latest, macos-latest, macos-13] #macOS_arm64 macOS_x86_64
     runs-on: ${{ matrix.platform }}
     env:
       BUILDROOT: "buildroot_${{ matrix.platform }}"
@@ -55,25 +56,10 @@ jobs:
         mkdir depdir
         cd depdir
         
-        #if [ "$RUNNER_OS" == "macOS" ]; then
-        #  builddir="buildroot_macos-latest"
-        #else
-        #  builddir=$BUILDROOT
-        #fi
-        
-        #mkdir $builddir
-        
         IFS=',' read -r -a deparray <<< "$GIT_DEPENDENCIES"; for d in ${deparray[@]}; do        
           echo "Got dependency: $d"
           r=$(echo $d | cut -d '/' -f 2)
           echo "Got reponame: $r"
-          
-          # tag=$(get_latest_release $d);
-          # echo "Found tag: $tag"
-          # wget "https://github.com/$d/releases/download/$tag/$builddir.zip"
-          # unzip -u "$builddir.zip"
-          # rm "$builddir.zip"
-          
           git clone "https://github.com/$d.git" "$r"
           cd "$r"
           ./autogen.sh --enable-static --disable-shared
@@ -82,8 +68,6 @@ jobs:
           cd ../
           rm -rf "$r"
         done
-        # echo "moving dependencies to /"
-        # sudo cp -r $builddir/* /
         cd ..
         rm -rf depdir
     - name: autogen
@@ -116,65 +100,65 @@ jobs:
         name: ${{ env.BUILDROOT }}
         path: ${{ env.BUILDROOT }}
 
-  release:
-    needs: build
-    runs-on: ubuntu-latest
+  # release:
+  #   needs: build
+  #   runs-on: ubuntu-latest
     
-    steps:
-    - uses: actions/checkout@v4
-    - name: Download ubuntu artifact
-      uses: actions/download-artifact@v4
-      with:
-        name: buildroot_ubuntu-latest   
-        path: buildroot_ubuntu-latest    
-    - name: Download macos artifact
-      uses: actions/download-artifact@v4
-      with:
-        name: buildroot_macos-latest
-        path: buildroot_macos-latest
-    - name: Download macos Intel artifact
-      uses: actions/download-artifact@v4
-      with:
-        name: buildroot_macos-13
-        path: buildroot_macos-13
-    - name: Set env vars and zip
-      run: |
-        echo "::set-env name=BUILD_VERSION_NUM::$(echo "$(git rev-list --count HEAD | tr -d '\n')")"
-        echo "::set-env name=BUILD_VERSION_SHA::$(echo "$(git rev-parse HEAD | tr -d '\n'])")"
-        echo "::set-env name=BUILD_VERSION_STR::$(echo "$(git rev-list --count HEAD | tr -d '\n')-$(git rev-parse HEAD | tr -d '\n'])")"
-        echo "::set-env name=COMMIT_MSG::$(echo "$(git log -1 --pretty=%B)")"
-        zip -r buildroot_macos-13.zip buildroot_macos-13
-        zip -r buildroot_macos-latest.zip buildroot_macos-latest
-        zip -r buildroot_ubuntu-latest.zip buildroot_ubuntu-latest
-    - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1.0.0
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ env.BUILD_VERSION_NUM }}
-        release_name: Build ${{ env.BUILD_VERSION_STR }}
-        body: ${{ env.COMMIT_MSG }}
-        draft: false
-        prerelease: false
-    - name: Upload Release Asset ubuntu
-      id: upload-release-asset-ubuntu
-      uses: actions/upload-release-asset@v1.0.1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: buildroot_ubuntu-latest.zip
-        asset_name: buildroot_ubuntu-latest.zip
-        asset_content_type: application/zip
-    - name: Upload Release Asset macos
-      id: upload-release-asset-macos 
-      uses: actions/upload-release-asset@v1.0.1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: buildroot_macos-latest.zip
-        asset_name: buildroot_macos-latest.zip
-        asset_content_type: application/zip
+  #   steps:
+  #   - uses: actions/checkout@v4
+  #   - name: Download ubuntu artifact
+  #     uses: actions/download-artifact@v4
+  #     with:
+  #       name: buildroot_ubuntu-latest   
+  #       path: buildroot_ubuntu-latest    
+  #   - name: Download macOS 11+ artifact
+  #     uses: actions/download-artifact@v4
+  #     with:
+  #       name: buildroot_macos-latest
+  #       path: buildroot_macos-latest
+  #   - name: Download macOS x86_64 artifact
+  #     uses: actions/download-artifact@v4
+  #     with:
+  #       name: buildroot_macOS_x86_64
+  #       path: buildroot_macOS_x86_64
+  #   - name: Set env vars and zip
+  #     run: |
+  #       echo "::set-env name=BUILD_VERSION_NUM::$(echo "$(git rev-list --count HEAD | tr -d '\n')")"
+  #       echo "::set-env name=BUILD_VERSION_SHA::$(echo "$(git rev-parse HEAD | tr -d '\n'])")"
+  #       echo "::set-env name=BUILD_VERSION_STR::$(echo "$(git rev-list --count HEAD | tr -d '\n')-$(git rev-parse HEAD | tr -d '\n'])")"
+  #       echo "::set-env name=COMMIT_MSG::$(echo "$(git log -1 --pretty=%B)")"
+  #       zip -r buildroot_macos-13.zip buildroot_macos-13
+  #       zip -r buildroot_macos-latest.zip buildroot_macos-latest
+  #       zip -r buildroot_ubuntu-latest.zip buildroot_ubuntu-latest
+  #   - name: Create Release
+  #     id: create_release
+  #     uses: actions/create-release@v1.0.0
+  #     env:
+  #       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #     with:
+  #       tag_name: ${{ env.BUILD_VERSION_NUM }}
+  #       release_name: Build ${{ env.BUILD_VERSION_STR }}
+  #       body: ${{ env.COMMIT_MSG }}
+  #       draft: false
+  #       prerelease: false
+  #   - name: Upload Release Asset ubuntu
+  #     id: upload-release-asset-ubuntu
+  #     uses: actions/upload-release-asset@v1.0.1
+  #     env:
+  #       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #     with:
+  #       upload_url: ${{ steps.create_release.outputs.upload_url }}
+  #       asset_path: buildroot_ubuntu-latest.zip
+  #       asset_name: buildroot_ubuntu-latest.zip
+  #       asset_content_type: application/zip
+  #   - name: Upload Release Asset macos
+  #     id: upload-release-asset-macos 
+  #     uses: actions/upload-release-asset@v1.0.1
+  #     env:
+  #       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #     with:
+  #       upload_url: ${{ steps.create_release.outputs.upload_url }}
+  #       asset_path: buildroot_macos-latest.zip
+  #       asset_name: buildroot_macos-latest.zip
+  #       asset_content_type: application/zip
   
