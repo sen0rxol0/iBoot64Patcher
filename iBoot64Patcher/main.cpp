@@ -76,7 +76,7 @@ int main(int argc, const char * argv[]) {
     }
 
     size_t buf_size = st.st_size;
-    void *iboot_buf = (void *) malloc(buf_size);
+    char *iboot_buf = (char *) malloc(buf_size);
     
     if (!iboot_buf) {
         printf("Out of memory while allocating region for %s!\n", input_path);
