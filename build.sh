@@ -39,6 +39,8 @@ export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:/usr/lib/pkgconfig"
 export PKG_CONFIG_LIBDIR="/usr/local/lib/pkgconfig:/usr/lib/pkgconfig"
 export PKG_CONFIG_SYSROOT_DIR="/"
 
+export libgeneral_CFLAGS="-I/usr/local/include"
+export libgeneral_LIBS="-L/usr/local/lib/libgeneral.a"
 
 # ── Helper: build a single autotools project ─────────────────────────────────
 build_autotools() {
@@ -97,7 +99,7 @@ install_predeps_linux() {
 
   # libplist (static)
   log "Building libplist (static)..."
-  git clone --branch 2.2.0 --depth 1 https://github.com/libimobiledevice/libplist "$WORK_DIR/libplist"
+  git clone --branch 2.3.0 --depth 1 https://github.com/libimobiledevice/libplist "$WORK_DIR/libplist"
   cd "$WORK_DIR/libplist"
   ./autogen.sh --without-cython --enable-static --disable-shared \
     CFLAGS="-fPIC" CXXFLAGS="-fPIC"
@@ -150,7 +152,7 @@ install_predeps_macos() {
   local sdk
   sdk="$(xcrun --sdk macosx --show-sdk-path)"
   local plist_src="$WORK_DIR/libplist"
-  git clone --branch 2.2.0 --depth 1 https://github.com/libimobiledevice/libplist "$plist_src"
+  git clone --branch 2.3.0 --depth 1 https://github.com/libimobiledevice/libplist "$plist_src"
 
   for arch in arm64 x86_64; do
     local slice_prefix="$WORK_DIR/libplist_${arch}/usr/local"
@@ -162,8 +164,8 @@ install_predeps_macos() {
       --without-cython --enable-static --disable-shared \
       --prefix="$slice_prefix" \
       --host="${arch}-apple-darwin" \
-      CFLAGS="-arch $arch -isysroot $sdk -mmacosx-version-min=11.0 -fPIC" \
-      CXXFLAGS="-arch $arch -isysroot $sdk -mmacosx-version-min=11.0 -fPIC" \
+      CFLAGS="-arch $arch -isysroot $sdk -mmacosx-version-min=10.13 -fPIC" \
+      CXXFLAGS="-arch $arch -isysroot $sdk -mmacosx-version-min=10.13 -fPIC" \
       LDFLAGS="-arch $arch"
     make -j"$(sysctl -n hw.logicalcpu)"
     make install
