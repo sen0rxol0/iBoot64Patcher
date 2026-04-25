@@ -54,6 +54,8 @@ build_autotools_for_arch() {
   local arch="$1"
   local src_dir="$2"
   local prefix="$3"
+  shift 3
+  local extra_args=("$@")
 
   local sdk
   sdk="$(xcrun --sdk macosx --show-sdk-path)"
@@ -64,9 +66,10 @@ build_autotools_for_arch() {
       --enable-static --disable-shared \
       --prefix="$prefix" \
       --host="${arch}-apple-darwin" \
-      CFLAGS="-arch $arch -isysroot $sdk -mmacosx-version-min=10.15" \
-      CXXFLAGS="-stdlib=libc++ -arch $arch -isysroot $sdk -mmacosx-version-min=10.15" \
-      LDFLAGS="-arch $arch"
+      CFLAGS="-arch $arch -isysroot $sdk -mmacosx-version-min=11.0" \
+      CXXFLAGS="-arch $arch -isysroot $sdk -mmacosx-version-min=11.0" \
+      LDFLAGS="-arch $arch" \
+      "${extra_args[@]}"
   else
     die "No autogen.sh found in $src_dir"
   fi
@@ -122,6 +125,7 @@ install_predeps_linux() {
 # ════════════════════════════════════════════════════════════════════════════
 install_predeps_macos() {
   log "Installing Homebrew packages..."
+  # Note: libplist intentionally excluded — built from source below
   brew install autoconf automake libtool pkg-config libzip
   brew reinstall openssl
 
@@ -131,6 +135,52 @@ install_predeps_macos() {
     ossl_prefix="$(brew --prefix openssl)"
     sudo mkdir -p /usr/local/lib/pkgconfig/
     sudo cp -r "$ossl_prefix/lib/pkgconfig/"* /usr/local/lib/pkgconfig/
+  fi
+
+  # Build libplist from source as a universal static lib
+  log "Building libplist from source (universal static)..."
+  local sdk
+  sdk="$(xcrun --sdk macosx --show-sdk-path)"
+  local plist_src="$WORK_DIR/libplist"
+  git clone https://github.com/libimobiledevice/libplist "$plist_src"
+
+  for arch in arm64 x86_64; do
+    local slice_prefix="$WORK_DIR/libplist_${arch}/usr/local"
+    local slice_src="$WORK_DIR/libplist_src_${arch}"
+    mkdir -p "$slice_prefix"
+    cp -r "$plist_src" "$slice_src"
+    cd "$slice_src"
+    ./autogen.sh \
+      --without-cython --enable-static --disable-shared \
+      --prefix="$slice_prefix" \
+      --host="${arch}-apple-darwin" \
+      CFLAGS="-arch $arch -isysroot $sdk -mmacosx-version-min=11.0 -fPIC" \
+      CXXFLAGS="-arch $arch -isysroot $sdk -mmacosx-version-min=11.0 -fPIC" \
+      LDFLAGS="-arch $arch"
+    make -j"$(sysctl -n hw.logicalcpu)"
+    make install
+    cd "$SCRIPT_DIR"
+  done
+
+  log "  lipo-ing libplist into universal..."
+  sudo mkdir -p /usr/local/lib /usr/local/include
+  find "$WORK_DIR/libplist_arm64/usr/local/lib" -name "*.a" | while read -r arm_lib; do
+    local libname x86_lib
+    libname="$(basename "$arm_lib")"
+    x86_lib="$WORK_DIR/libplist_x86_64/usr/local/lib/$libname"
+    if [ -f "$x86_lib" ]; then
+      sudo lipo -create "$arm_lib" "$x86_lib" -output "/usr/local/lib/$libname"
+      log "    -> /usr/local/lib/$libname"
+    fi
+  done
+  sudo cp -r "$WORK_DIR/libplist_arm64/usr/local/include/"* /usr/local/include/
+
+  # Register libplist pkg-config so dependent packages find it
+  if [ -d "$WORK_DIR/libplist_arm64/usr/local/lib/pkgconfig" ]; then
+    sudo mkdir -p /usr/local/lib/pkgconfig
+    sudo cp "$WORK_DIR/libplist_arm64/usr/local/lib/pkgconfig/"*.pc /usr/local/lib/pkgconfig/
+    # Fix prefix path in .pc files to point to /usr/local
+    sudo sed -i '' 's|^prefix=.*|prefix=/usr/local|' /usr/local/lib/pkgconfig/libplist*.pc
   fi
 }
 
