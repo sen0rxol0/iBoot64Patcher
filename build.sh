@@ -54,8 +54,6 @@ build_autotools_for_arch() {
   local arch="$1"
   local src_dir="$2"
   local prefix="$3"
-  shift 3
-  local extra_args=("$@")
 
   local sdk
   sdk="$(xcrun --sdk macosx --show-sdk-path)"
@@ -66,10 +64,9 @@ build_autotools_for_arch() {
       --enable-static --disable-shared \
       --prefix="$prefix" \
       --host="${arch}-apple-darwin" \
-      CFLAGS="-arch $arch -isysroot $sdk -mmacosx-version-min=11.0" \
-      CXXFLAGS="-arch $arch -isysroot $sdk -mmacosx-version-min=11.0" \
-      LDFLAGS="-arch $arch" \
-      "${extra_args[@]}"
+      CFLAGS="-arch $arch -isysroot $sdk -mmacosx-version-min=10.13" \
+      CXXFLAGS="-stdlib=libc++ -arch $arch -isysroot $sdk -mmacosx-version-min=10.13" \
+      LDFLAGS="-arch $arch"
   else
     die "No autogen.sh found in $src_dir"
   fi
@@ -90,7 +87,7 @@ install_predeps_linux() {
 
   # libplist (static)
   log "Building libplist (static)..."
-  git clone https://github.com/libimobiledevice/libplist "$WORK_DIR/libplist"
+  git clone --branch 2.2.0 --depth 1 https://github.com/libimobiledevice/libplist "$WORK_DIR/libplist"
   cd "$WORK_DIR/libplist"
   ./autogen.sh --without-cython --enable-static --disable-shared \
     CFLAGS="-fPIC" CXXFLAGS="-fPIC"
@@ -128,6 +125,7 @@ install_predeps_macos() {
   # Note: libplist intentionally excluded — built from source below
   brew install autoconf automake libtool pkg-config libzip
   brew reinstall openssl
+  # brew postinstall openssl
 
   # Ensure openssl pkg-config is visible system-wide
   if [ ! -e /usr/local/lib/pkgconfig/openssl.pc ]; then
@@ -142,7 +140,7 @@ install_predeps_macos() {
   local sdk
   sdk="$(xcrun --sdk macosx --show-sdk-path)"
   local plist_src="$WORK_DIR/libplist"
-  git clone https://github.com/libimobiledevice/libplist "$plist_src"
+  git clone --branch 2.2.0 --depth 1 https://github.com/libimobiledevice/libplist "$plist_src"
 
   for arch in arm64 x86_64; do
     local slice_prefix="$WORK_DIR/libplist_${arch}/usr/local"
@@ -298,8 +296,8 @@ build_main_macos_universal() {
   cp -r "$SCRIPT_DIR" "$arm_dir/src"
   cd "$arm_dir/src"
   ./autogen.sh --enable-static --disable-shared \
-    CFLAGS="-arch arm64 -isysroot $sdk -mmacosx-version-min=11.0" \
-    CXXFLAGS="-arch arm64 -isysroot $sdk -mmacosx-version-min=11.0" \
+    CFLAGS="-arch arm64 -isysroot $sdk -mmacosx-version-min=10.13" \
+    CXXFLAGS="-arch arm64 -isysroot $sdk -mmacosx-version-min=10.13" \
     LDFLAGS="-arch arm64"
   make -j"$(sysctl -n hw.logicalcpu)"
 
@@ -308,8 +306,8 @@ build_main_macos_universal() {
   cp -r "$SCRIPT_DIR" "$x86_dir/src"
   cd "$x86_dir/src"
   ./autogen.sh --enable-static --disable-shared \
-    CFLAGS="-arch x86_64 -isysroot $sdk -mmacosx-version-min=11.0" \
-    CXXFLAGS="-arch x86_64 -isysroot $sdk -mmacosx-version-min=11.0" \
+    CFLAGS="-arch x86_64 -isysroot $sdk -mmacosx-version-min=10.13" \
+    CXXFLAGS="-arch x86_64 -isysroot $sdk -mmacosx-version-min=10.13" \
     LDFLAGS="-arch x86_64"
   make -j"$(sysctl -n hw.logicalcpu)"
 
