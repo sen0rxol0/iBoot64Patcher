@@ -54,8 +54,6 @@ build_autotools_for_arch() {
   local arch="$1"
   local src_dir="$2"
   local prefix="$3"
-  shift 3
-  local extra_args=("$@")
 
   local sdk
   sdk="$(xcrun --sdk macosx --show-sdk-path)"
@@ -68,8 +66,7 @@ build_autotools_for_arch() {
       --host="${arch}-apple-darwin" \
       CFLAGS="-arch $arch -isysroot $sdk -mmacosx-version-min=10.15" \
       CXXFLAGS="-stdlib=libc++ -arch $arch -isysroot $sdk -mmacosx-version-min=10.15" \
-      LDFLAGS="-arch $arch" \
-      "${extra_args[@]}"
+      LDFLAGS="-arch $arch"
   else
     die "No autogen.sh found in $src_dir"
   fi
@@ -125,7 +122,7 @@ install_predeps_linux() {
 # ════════════════════════════════════════════════════════════════════════════
 install_predeps_macos() {
   log "Installing Homebrew packages..."
-  brew install autoconf automake libtool pkg-config libzip libplist
+  brew install autoconf automake libtool pkg-config libzip
   brew reinstall openssl
 
   # Ensure openssl pkg-config is visible system-wide
