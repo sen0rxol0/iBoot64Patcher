@@ -5,14 +5,15 @@
 //  Created by tihmstar on 27.09.19.
 //  Copyright © 2019 tihmstar. All rights reserved.
 //
-//  Edited by @sen0rxol0 on 29.06.25.
-//
-// Added libpatchfinder instead of liboffsetfinder64
-// Fixed build in Actions
-// Added and fixed get_freshnonce_patch(), thanks to Cryptiiiic's fork
-// Added input file reading into a buffer
-// Improved file read and write code
 
+// Mods by @sen0rxol0
+//
+// Add libpatchfinder instead of liboffsetfinder64
+// Fix build
+// Add and fix get_freshnonce_patch(), thanks to Cryptiiiic's fork
+// Add input file reading into a buffer
+// Improve file read and write
+// 
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
