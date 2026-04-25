@@ -66,8 +66,8 @@ build_autotools_for_arch() {
       --enable-static --disable-shared \
       --prefix="$prefix" \
       --host="${arch}-apple-darwin" \
-      CFLAGS="-arch $arch -isysroot $sdk -mmacosx-version-min=10.5" \
-      CXXFLAGS="-arch $arch -isysroot $sdk -mmacosx-version-min=10.5" \
+      CFLAGS="-arch $arch -isysroot $sdk -mmacosx-version-min=10.15" \
+      CXXFLAGS="-stdlib=libc++ -arch $arch -isysroot $sdk -mmacosx-version-min=10.15" \
       LDFLAGS="-arch $arch" \
       "${extra_args[@]}"
   else
