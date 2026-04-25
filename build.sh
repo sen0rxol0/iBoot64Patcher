@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# build.sh — Build iBoot64Patcher for macOS (universal) or Linux
+# build.sh — Build iBoot64Patcher for macOS (arm64 + x86_64 separately) or Linux
 # Usage: ./build.sh [--prefix /path/to/install]
 set -euo pipefail
 
@@ -24,17 +24,7 @@ case "$OS" in
   *)      die "Unsupported OS: $OS" ;;
 esac
 
-# ── macOS: determine target architectures ────────────────────────────────────
-if [ "$PLATFORM" = "macos" ]; then
-  MACOS_ARCHES=("arm64" "x86_64")
-  log "macOS detected — will build universal binary (arm64 + x86_64)"
-fi
-
 # ── pkg-config search paths ──────────────────────────────────────────────────
-# Ensure pkg-config always finds .pc files installed into /usr/local, covering
-# libgeneral and all other deps that install there. PKG_CONFIG_LIBDIR replaces
-# the default search list entirely, so we prepend /usr/local/lib/pkgconfig and
-# keep the system default paths alongside it.
 export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:/usr/lib/pkgconfig"
 export PKG_CONFIG_LIBDIR="/usr/local/lib/pkgconfig:/usr/lib/pkgconfig"
 export PKG_CONFIG_SYSROOT_DIR="/"
@@ -61,7 +51,7 @@ build_autotools() {
   cd "$SCRIPT_DIR"
 }
 
-# ── Helper: build a project for a specific arch (macOS only) ─────────────────
+# ── Helper: build a project for a specific arch into a specific prefix ────────
 build_autotools_for_arch() {
   local arch="$1"
   local src_dir="$2"
@@ -130,14 +120,12 @@ install_predeps_linux() {
 }
 
 # ════════════════════════════════════════════════════════════════════════════
-# macOS: install pre-dependencies
+# macOS: install pre-dependencies (shared; libplist built per-arch separately)
 # ════════════════════════════════════════════════════════════════════════════
 install_predeps_macos() {
   log "Installing Homebrew packages..."
-  # Note: libplist intentionally excluded — built from source below
   brew install autoconf automake libtool pkg-config libzip
   brew reinstall openssl
-  # brew postinstall openssl
 
   # Ensure openssl pkg-config is visible system-wide
   if [ ! -e /usr/local/lib/pkgconfig/openssl.pc ]; then
@@ -146,51 +134,40 @@ install_predeps_macos() {
     sudo mkdir -p /usr/local/lib/pkgconfig/
     sudo cp -r "$ossl_prefix/lib/pkgconfig/"* /usr/local/lib/pkgconfig/
   fi
+}
 
-  # Build libplist from source as a universal static lib
-  log "Building libplist from source (universal static)..."
-  local sdk
+# ── Helper: build libplist for a single arch and install into an arch prefix ──
+build_libplist_for_arch() {
+  local arch="$1"
+  local prefix="$2"
+
+  local sdk plist_src slice_src
   sdk="$(xcrun --sdk macosx --show-sdk-path)"
-  local plist_src="$WORK_DIR/libplist"
-  git clone --branch 2.3.0 --depth 1 https://github.com/libimobiledevice/libplist "$plist_src"
+  plist_src="$WORK_DIR/libplist_src"
 
-  for arch in arm64 x86_64; do
-    local slice_prefix="$WORK_DIR/libplist_${arch}/usr/local"
-    local slice_src="$WORK_DIR/libplist_src_${arch}"
-    mkdir -p "$slice_prefix"
-    cp -r "$plist_src" "$slice_src"
-    cd "$slice_src"
-    ./autogen.sh \
-      --without-cython --enable-static --disable-shared \
-      --prefix="$slice_prefix" \
-      --host="${arch}-apple-darwin" \
-      CFLAGS="-arch $arch -isysroot $sdk -mmacosx-version-min=10.13 -fPIC" \
-      CXXFLAGS="-arch $arch -isysroot $sdk -mmacosx-version-min=10.13 -fPIC" \
-      LDFLAGS="-arch $arch"
-    make -j"$(sysctl -n hw.logicalcpu)"
-    make install
-    cd "$SCRIPT_DIR"
-  done
+  # Clone once, reuse for each arch
+  if [ ! -d "$plist_src" ]; then
+    git clone --branch 2.3.0 --depth 1 https://github.com/libimobiledevice/libplist "$plist_src"
+  fi
 
-  log "  lipo-ing libplist into universal..."
-  sudo mkdir -p /usr/local/lib /usr/local/include
-  find "$WORK_DIR/libplist_arm64/usr/local/lib" -name "*.a" | while read -r arm_lib; do
-    local libname x86_lib
-    libname="$(basename "$arm_lib")"
-    x86_lib="$WORK_DIR/libplist_x86_64/usr/local/lib/$libname"
-    if [ -f "$x86_lib" ]; then
-      sudo lipo -create "$arm_lib" "$x86_lib" -output "/usr/local/lib/$libname"
-      log "    -> /usr/local/lib/$libname"
-    fi
-  done
-  sudo cp -r "$WORK_DIR/libplist_arm64/usr/local/include/"* /usr/local/include/
+  slice_src="$WORK_DIR/libplist_src_${arch}"
+  cp -r "$plist_src" "$slice_src"
 
-  # Register libplist pkg-config so dependent packages find it
-  if [ -d "$WORK_DIR/libplist_arm64/usr/local/lib/pkgconfig" ]; then
-    sudo mkdir -p /usr/local/lib/pkgconfig
-    sudo cp "$WORK_DIR/libplist_arm64/usr/local/lib/pkgconfig/"*.pc /usr/local/lib/pkgconfig/
-    # Fix prefix path in .pc files to point to /usr/local
-    sudo sed -i '' 's|^prefix=.*|prefix=/usr/local|' /usr/local/lib/pkgconfig/libplist*.pc
+  cd "$slice_src"
+  ./autogen.sh \
+    --without-cython --enable-static --disable-shared \
+    --prefix="$prefix" \
+    --host="${arch}-apple-darwin" \
+    CFLAGS="-arch $arch -isysroot $sdk -mmacosx-version-min=10.13 -fPIC" \
+    CXXFLAGS="-arch $arch -isysroot $sdk -mmacosx-version-min=10.13 -fPIC" \
+    LDFLAGS="-arch $arch"
+  make -j"$(sysctl -n hw.logicalcpu)"
+  make install
+  cd "$SCRIPT_DIR"
+
+  # Register pkg-config .pc files under the arch prefix
+  if [ -d "$prefix/lib/pkgconfig" ]; then
+    sed -i '' "s|^prefix=.*|prefix=$prefix|" "$prefix/lib/pkgconfig"/libplist*.pc 2>/dev/null || true
   fi
 }
 
@@ -213,58 +190,29 @@ build_git_deps_linux() {
 }
 
 # ════════════════════════════════════════════════════════════════════════════
-# macOS: build git dependencies as universal libs
+# macOS: build git dependencies for a single arch
 # ════════════════════════════════════════════════════════════════════════════
-build_git_deps_macos() {
-  log "Building git dependencies as universal binaries (macOS)..."
-  local dep_dir="$WORK_DIR/deps"
+build_git_deps_macos_arch() {
+  local arch="$1"
+  local prefix="$2"
+
+  log "Building git dependencies for $arch..."
+  local dep_dir="$WORK_DIR/deps_${arch}"
   mkdir -p "$dep_dir"
 
   IFS=',' read -r -a deps <<< "$GIT_DEPENDENCIES"
   for d in "${deps[@]}"; do
-    local repo
+    local repo src_dir
     repo="$(echo "$d" | cut -d'/' -f2)"
-    log "  → $repo (universal)"
-    git clone "https://github.com/$d.git" "$dep_dir/$repo"
-
-    local arm_prefix="$WORK_DIR/sysroot_arm64/usr/local"
-    local x86_prefix="$WORK_DIR/sysroot_x86_64/usr/local"
-    local fat_prefix="/usr/local"
-
-    mkdir -p "$arm_prefix" "$x86_prefix"
-
-    # Build arm64 slice
-    local src_arm="$dep_dir/${repo}_arm64"
-    cp -r "$dep_dir/$repo" "$src_arm"
-    build_autotools_for_arch arm64 "$src_arm" "$arm_prefix"
-
-    # Build x86_64 slice
-    local src_x86="$dep_dir/${repo}_x86_64"
-    cp -r "$dep_dir/$repo" "$src_x86"
-    build_autotools_for_arch x86_64 "$src_x86" "$x86_prefix"
-
-    # Lipo static libs into fat universals and install
-    log "    lipo-ing $repo into universal..."
-    find "$arm_prefix/lib" -name "*.a" | while read -r arm_lib; do
-      local libname
-      libname="$(basename "$arm_lib")"
-      local x86_lib="$x86_prefix/lib/$libname"
-      local fat_lib="$fat_prefix/lib/$libname"
-      if [ -f "$x86_lib" ]; then
-        sudo mkdir -p "$(dirname "$fat_lib")"
-        sudo lipo -create "$arm_lib" "$x86_lib" -output "$fat_lib"
-      fi
-    done
-
-    # Install headers from arm64 build (arch-independent)
-    if [ -d "$arm_prefix/include" ]; then
-      sudo cp -r "$arm_prefix/include/"* "$fat_prefix/include/"
-    fi
+    log "  → $repo ($arch)"
+    src_dir="$dep_dir/$repo"
+    git clone "https://github.com/$d.git" "$src_dir"
+    build_autotools_for_arch "$arch" "$src_dir" "$prefix"
   done
 }
 
 # ════════════════════════════════════════════════════════════════════════════
-# macOS: hide dynamic libs so linker is forced to use static ones
+# macOS: hide/restore dynamic libs to force static linking
 # ════════════════════════════════════════════════════════════════════════════
 hide_dylibs() {
   log "Hiding dynamic libs to force static linking: $MAC_DYNAMIC_LIBS"
@@ -289,56 +237,46 @@ restore_dylibs() {
 }
 
 # ════════════════════════════════════════════════════════════════════════════
-# macOS: build the main project as a universal binary
+# macOS: build the main project for a single arch
 # ════════════════════════════════════════════════════════════════════════════
-build_main_macos_universal() {
-  log "Building iBoot64Patcher as universal binary..."
+build_main_macos_arch() {
+  local arch="$1"
+  local sysroot_prefix="$2"   # where deps were installed for this arch
+  local out_prefix="$3"       # where to install the final binary
 
-  local sdk
+  log "Building iBoot64Patcher ($arch)..."
+
+  local sdk build_dir
   sdk="$(xcrun --sdk macosx --show-sdk-path)"
-  local arm_dir="$WORK_DIR/build_arm64"
-  local x86_dir="$WORK_DIR/build_x86_64"
-
-  mkdir -p "$arm_dir" "$x86_dir"
+  build_dir="$WORK_DIR/build_${arch}"
+  mkdir -p "$build_dir"
 
   hide_dylibs
 
-  # arm64
-  log "  Compiling arm64 slice..."
-  cp -r "$SCRIPT_DIR" "$arm_dir/src"
-  cd "$arm_dir/src"
-  ./autogen.sh --enable-static --disable-shared \
-    CFLAGS="-arch arm64 -isysroot $sdk -mmacosx-version-min=10.13" \
-    CXXFLAGS="-arch arm64 -isysroot $sdk -mmacosx-version-min=10.13" \
-    LDFLAGS="-arch arm64"
-  make -j"$(sysctl -n hw.logicalcpu)"
-
-  # x86_64
-  log "  Compiling x86_64 slice..."
-  cp -r "$SCRIPT_DIR" "$x86_dir/src"
-  cd "$x86_dir/src"
-  ./autogen.sh --enable-static --disable-shared \
-    CFLAGS="-arch x86_64 -isysroot $sdk -mmacosx-version-min=10.13" \
-    CXXFLAGS="-arch x86_64 -isysroot $sdk -mmacosx-version-min=10.13" \
-    LDFLAGS="-arch x86_64"
+  cp -r "$SCRIPT_DIR" "$build_dir/src"
+  cd "$build_dir/src"
+  ./autogen.sh \
+    --enable-static --disable-shared \
+    --prefix="$sysroot_prefix" \
+    --host="${arch}-apple-darwin" \
+    CFLAGS="-arch $arch -isysroot $sdk -mmacosx-version-min=10.13 -I${sysroot_prefix}/include" \
+    CXXFLAGS="-arch $arch -isysroot $sdk -mmacosx-version-min=10.13 -I${sysroot_prefix}/include" \
+    LDFLAGS="-arch $arch -L${sysroot_prefix}/lib" \
+    PKG_CONFIG_PATH="${sysroot_prefix}/lib/pkgconfig:/usr/local/lib/pkgconfig"
   make -j"$(sysctl -n hw.logicalcpu)"
 
   restore_dylibs
 
-  # lipo final binary
-  log "  Creating universal binary with lipo..."
-  local bin_name
-  # Find the built executable (usually in src/ or bin/)
-  local arm_bin x86_bin
-  arm_bin="$(find "$arm_dir/src" -maxdepth 3 -type f -perm +111 ! -name "*.sh" ! -name "*.py" | head -1)"
-  x86_bin="$(find "$x86_dir/src" -maxdepth 3 -type f -perm +111 ! -name "*.sh" ! -name "*.py" | head -1)"
-  bin_name="$(basename "$arm_bin")"
+  # Install the binary into the arch-specific output directory
+  local bin_name bin_path
+  bin_path="$(find "$build_dir/src" -maxdepth 3 -type f -perm +111 ! -name "*.sh" ! -name "*.py" | head -1)"
+  bin_name="$(basename "$bin_path")"
 
-  sudo mkdir -p "$INSTALL_PREFIX/usr/local/bin"
-  sudo lipo -create "$arm_bin" "$x86_bin" -output "$INSTALL_PREFIX/usr/local/bin/$bin_name"
+  mkdir -p "$out_prefix/bin"
+  cp "$bin_path" "$out_prefix/bin/$bin_name"
+  log "  → $out_prefix/bin/$bin_name"
 
-  log "  Universal binary: $INSTALL_PREFIX/usr/local/bin/$bin_name"
-  lipo -info "$INSTALL_PREFIX/usr/local/bin/$bin_name"
+  cd "$SCRIPT_DIR"
 }
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -365,7 +303,19 @@ if [ "$PLATFORM" = "linux" ]; then
 
 elif [ "$PLATFORM" = "macos" ]; then
   install_predeps_macos
-  build_git_deps_macos
-  build_main_macos_universal
-  log "Done! Universal binary in: $INSTALL_PREFIX/usr/local/bin/"
+
+  for arch in arm64 x86_64; do
+    log "═══ Building $arch ═══"
+    sysroot="$WORK_DIR/sysroot_${arch}"
+    out="$INSTALL_PREFIX/${arch}"
+    mkdir -p "$sysroot" "$out"
+
+    build_libplist_for_arch "$arch" "$sysroot"
+    build_git_deps_macos_arch "$arch" "$sysroot"
+    build_main_macos_arch "$arch" "$sysroot" "$out"
+  done
+
+  log "Done!"
+  log "  arm64  → $INSTALL_PREFIX/arm64/bin/"
+  log "  x86_64 → $INSTALL_PREFIX/x86_64/bin/"
 fi
