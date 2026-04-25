@@ -104,7 +104,7 @@ jobs:
       BUILDROOT: ${{ matrix.artifact }}
       GIT_DEPENDENCIES: tihmstar/libgeneral,tihmstar/libinsn,tihmstar/libplist,tihmstar/img3tool,tihmstar/img4tool,tihmstar/libpatchfinder
       MAC_DYNAMIC_LIBS: openssl
-      MACOSX_DEPLOYMENT_TARGET: "11.0"
+      MACOSX_DEPLOYMENT_TARGET: "10.5"
 
     steps:
       - uses: actions/checkout@v4
