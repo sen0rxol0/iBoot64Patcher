@@ -30,6 +30,16 @@ if [ "$PLATFORM" = "macos" ]; then
   log "macOS detected — will build universal binary (arm64 + x86_64)"
 fi
 
+# ── pkg-config search paths ──────────────────────────────────────────────────
+# Ensure pkg-config always finds .pc files installed into /usr/local, covering
+# libgeneral and all other deps that install there. PKG_CONFIG_LIBDIR replaces
+# the default search list entirely, so we prepend /usr/local/lib/pkgconfig and
+# keep the system default paths alongside it.
+export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:/usr/lib/pkgconfig"
+export PKG_CONFIG_LIBDIR="/usr/local/lib/pkgconfig:/usr/lib/pkgconfig"
+export PKG_CONFIG_SYSROOT_DIR="/"
+
+
 # ── Helper: build a single autotools project ─────────────────────────────────
 build_autotools() {
   local src_dir="$1"
