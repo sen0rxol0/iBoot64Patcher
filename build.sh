@@ -14,7 +14,6 @@ GIT_DEPENDENCIES=(
   "tihmstar/img3tool@53a2db92d6c79cae136456f5245844b0d90ce27c"
   "tihmstar/img4tool@f42f98e892517c8adfc84536afbd3b51dbd43aba"
   "tihmstar/libpatchfinder@26ff1ed8c027fc6325149ba88ad17210b05a7781"
-  "lzfse/lzfse@HEAD"
 )
 
 INSTALL_PREFIX="${1:-$(pwd)/buildroot}"
@@ -290,6 +289,8 @@ install_predeps_linux() {
     mark_built "$stamp"
   fi
 
+  build_lzfse_linux
+
   # cctools headers (needed for Mach-O types on Linux)
   local stamp_cc="cctools_linux"
   if is_built "$stamp_cc"; then
@@ -386,12 +387,6 @@ build_git_deps_linux() {
     repo="$(dep_name "$entry")"
     stamp="${repo}_linux"
 
-    # lzfse uses a cmake-based build; handled separately
-    if [ "$repo" = "lzfse" ]; then
-      build_lzfse_linux
-      continue
-    fi
-
     if is_built "$stamp"; then
       skip "$repo (linux)"
       continue
@@ -423,12 +418,6 @@ build_git_deps_macos_arch() {
     repo="$(dep_name "$entry")"
     stamp="${repo}_${arch}"
 
-    # lzfse uses a cmake-based build; handled separately
-    # if [ "$repo" = "lzfse" ]; then
-    #   build_lzfse_macos_arch "$arch" "$prefix"
-    #   continue
-    # fi
-
     if is_built "$stamp"; then
       skip "$repo ($arch)"
       continue
@@ -455,6 +444,8 @@ build_main_macos_arch() {
   local sdk build_dir
   sdk="$(xcrun --sdk macosx --show-sdk-path)"
   build_dir="${BUILD_DIR}/build_${arch}"
+  mkdir -p "$build_dir"
+
   # Copy only the project source, excluding build artefacts and caches that
   # can contain deeply-nested paths long enough to trip cp's NAME_MAX limit.
   mkdir -p "$build_dir/src"
@@ -465,19 +456,21 @@ build_main_macos_arch() {
     --exclude='.git/' \
     "$SCRIPT_DIR/" "$build_dir/src/"
   cd "$build_dir/src"
+  PKG_CONFIG_PATH="${sysroot_prefix}/lib/pkgconfig" \
   ./autogen.sh \
     --enable-static --disable-shared \
     --prefix="$sysroot_prefix" \
     --host="${arch}-apple-darwin" \
     CFLAGS="-arch $arch -isysroot $sdk -mmacosx-version-min=10.13 -I${sysroot_prefix}/include" \
     CXXFLAGS="-arch $arch -isysroot $sdk -mmacosx-version-min=10.13 -I${sysroot_prefix}/include" \
-    LDFLAGS="-arch $arch -L${sysroot_prefix}/lib" \
-    PKG_CONFIG_PATH="${sysroot_prefix}/lib/pkgconfig"
+    LDFLAGS="-arch $arch -L${sysroot_prefix}/lib"
   make -j"$(ncpu)"
 
-  # Install the binary into the arch-specific output directory
+  # Install the binary into the arch-specific output directory.
+  # -perm /111 (not +111) works with both BSD and GNU find.
   local bin_path bin_name
-  bin_path="$(find "$build_dir/src" -maxdepth 3 -type f -perm +111 ! -name "*.sh" ! -name "*.py" | head -1)"
+  bin_path="$(find "$build_dir/src" -maxdepth 3 -type f -perm /111 | head -1)"
+  [ -n "$bin_path" ] || die "Could not locate built binary in $build_dir/src"
   bin_name="$(basename "$bin_path")"
 
   mkdir -p "$out_prefix/bin"
@@ -523,12 +516,9 @@ elif [ "$PLATFORM" = "macos" ]; then
     export PKG_CONFIG_LIBDIR="$sysroot/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/lib/pkgconfig"
     export PKG_CONFIG_SYSROOT_DIR="$sysroot"
 
-    export libgeneral_CFLAGS="-I$sysroot/include"
-    export libgeneral_LIBS="-L$sysroot/lib"
-
     build_openssl_macos_arch  "$arch" "$sysroot"
     build_libplist_for_arch   "$arch" "$sysroot"
-    build_lzfse_macos_arch    "$arch" "$sysroot"
+    # build_lzfse_macos_arch    "$arch" "$sysroot"
     build_git_deps_macos_arch "$arch" "$sysroot"
     build_main_macos_arch     "$arch" "$sysroot" "$out"
   done
