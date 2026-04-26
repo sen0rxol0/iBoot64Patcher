@@ -455,9 +455,15 @@ build_main_macos_arch() {
   local sdk build_dir
   sdk="$(xcrun --sdk macosx --show-sdk-path)"
   build_dir="${BUILD_DIR}/build_${arch}"
-  mkdir -p "$build_dir"
-
-  cp -r "$SCRIPT_DIR" "$build_dir/src"
+  # Copy only the project source, excluding build artefacts and caches that
+  # can contain deeply-nested paths long enough to trip cp's NAME_MAX limit.
+  mkdir -p "$build_dir/src"
+  rsync -a --delete \
+    --exclude='.build-deps/' \
+    --exclude='.build-cache/' \
+    --exclude='buildroot/' \
+    --exclude='.git/' \
+    "$SCRIPT_DIR/" "$build_dir/src/"
   cd "$build_dir/src"
   ./autogen.sh \
     --enable-static --disable-shared \
