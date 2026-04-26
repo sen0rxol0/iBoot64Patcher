@@ -7,7 +7,15 @@ set -euo pipefail
 OPENSSL_VERSION="3.0.15"
 OPENSSL_URL="https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz"
 
-GIT_DEPENDENCIES="tihmstar/libgeneral,tihmstar/libinsn,tihmstar/libplist,tihmstar/img3tool,tihmstar/img4tool,tihmstar/libpatchfinder"
+# Format: "owner/repo@commit"
+GIT_DEPENDENCIES=(
+  "tihmstar/libgeneral@03e33a356abd0ced4bfce8df9e9644edeaf2920c"
+  "tihmstar/libinsn@78a4b3a8832bbc447cc0b6f038d8ed7d84660c98"
+  "tihmstar/img3tool@53a2db92d6c79cae136456f5245844b0d90ce27c"
+  "tihmstar/img4tool@f42f98e892517c8adfc84536afbd3b51dbd43aba"
+  "tihmstar/libpatchfinder@26ff1ed8c027fc6325149ba88ad17210b05a7781"
+  "lzfse/lzfse@HEAD"
+)
 
 INSTALL_PREFIX="${1:-$(pwd)/buildroot}"
 
@@ -39,6 +47,34 @@ esac
 
 # ── CPU count helper ─────────────────────────────────────────────────────────
 ncpu() { nproc 2>/dev/null || sysctl -n hw.logicalcpu; }
+
+# ── Git clone + pinned-commit checkout helper ────────────────────────────────
+# Usage: git_clone_at_commit <owner/repo> <commit> <dest_dir>
+# If commit is "HEAD", just clones the default branch (shallow).
+git_clone_at_commit() {
+  local slug="$1"   # e.g. tihmstar/libgeneral
+  local commit="$2" # full SHA or HEAD
+  local dest="$3"
+
+  if [ -d "$dest" ]; then
+    return  # already cloned
+  fi
+
+  if [ "$commit" = "HEAD" ]; then
+    git clone --depth 1 "https://github.com/${slug}.git" "$dest"
+  else
+    # Shallow clone is not possible for arbitrary commits via --depth 1 on
+    # all servers, so we do a full clone then checkout the exact commit.
+    git clone "https://github.com/${slug}.git" "$dest"
+    git -C "$dest" checkout "$commit"
+  fi
+}
+
+# ── Parse "owner/repo@commit" entry ─────────────────────────────────────────
+dep_slug()   { echo "${1%@*}"; }           # tihmstar/libgeneral
+dep_repo()   { echo "${1%@*}"; echo "$1" | cut -d'/' -f2 | cut -d'@' -f1; }
+dep_name()   { echo "${1##*/}" | cut -d'@' -f1; }  # libgeneral
+dep_commit() { echo "${1##*@}"; }          # 03e33a35…
 
 # ════════════════════════════════════════════════════════════════════════════
 # Generic autotools builder (Linux / system-wide install)
@@ -184,6 +220,46 @@ build_openssl_macos_arch() {
 }
 
 # ════════════════════════════════════════════════════════════════════════════
+# lzfse — build from source (Linux)
+# ════════════════════════════════════════════════════════════════════════════
+build_lzfse_linux() {
+  local stamp="lzfse_linux"
+  if is_built "$stamp"; then skip "lzfse (linux)"; return; fi
+
+  log "Building lzfse (Linux)..."
+  local src_dir="${BUILD_DIR}/deps_linux/lzfse"
+  git_clone_at_commit "lzfse/lzfse" "HEAD" "$src_dir"
+  make -C "$src_dir" CFLAGS="-fPIC" -j"$(ncpu)"
+  sudo make -C "$src_dir" install INSTALL_PREFIX=/usr/local
+  mark_built "$stamp"
+}
+
+# lzfse — build for a single arch into an arch prefix (macOS)
+build_lzfse_macos_arch() {
+  local arch="$1"
+  local prefix="$2"
+
+  local stamp="lzfse_${arch}"
+  if is_built "$stamp"; then skip "lzfse ($arch)"; return; fi
+
+  log "Building lzfse ($arch)..."
+
+  local sdk
+  sdk="$(xcrun --sdk macosx --show-sdk-path)"
+
+  local src_dir="${BUILD_DIR}/deps_${arch}/lzfse"
+  git_clone_at_commit "lzfse/lzfse" "HEAD" "$src_dir"
+
+  make -C "$src_dir" \
+    CFLAGS="-arch $arch -isysroot $sdk -mmacosx-version-min=10.13 -fPIC" \
+    -j"$(ncpu)"
+  make -C "$src_dir" install INSTALL_PREFIX="$prefix"
+
+  mark_built "$stamp"
+  log "  lzfse ($arch) → ${prefix}"
+}
+
+# ════════════════════════════════════════════════════════════════════════════
 # Linux: install pre-dependencies
 # ════════════════════════════════════════════════════════════════════════════
 install_predeps_linux() {
@@ -212,19 +288,6 @@ install_predeps_linux() {
     sudo make install
     cd "$SCRIPT_DIR"
     mark_built "$stamp"
-  fi
-
-  # lzfse (static, fPIC)
-  local stamp_lzfse="lzfse_linux"
-  if is_built "$stamp_lzfse"; then
-    skip "lzfse (linux)"
-  else
-    log "Building lzfse..."
-    local lzfse_dir="${BUILD_DIR}/lzfse"
-    [ -d "$lzfse_dir" ] || git clone https://github.com/lzfse/lzfse.git "$lzfse_dir"
-    make -C "$lzfse_dir" CFLAGS="-fPIC" -j"$(ncpu)"
-    sudo make -C "$lzfse_dir" install INSTALL_PREFIX=/usr/local
-    mark_built "$stamp_lzfse"
   fi
 
   # cctools headers (needed for Mach-O types on Linux)
@@ -316,20 +379,27 @@ build_git_deps_linux() {
   local dep_dir="${BUILD_DIR}/deps_linux"
   mkdir -p "$dep_dir"
 
-  IFS=',' read -r -a deps <<< "$GIT_DEPENDENCIES"
-  for d in "${deps[@]}"; do
-    local repo stamp
-    repo="$(echo "$d" | cut -d'/' -f2)"
+  for entry in "${GIT_DEPENDENCIES[@]}"; do
+    local slug commit repo stamp
+    slug="$(dep_slug "$entry")"
+    commit="$(dep_commit "$entry")"
+    repo="$(dep_name "$entry")"
     stamp="${repo}_linux"
+
+    # lzfse uses a cmake-based build; handled separately
+    if [ "$repo" = "lzfse" ]; then
+      build_lzfse_linux
+      continue
+    fi
 
     if is_built "$stamp"; then
       skip "$repo (linux)"
       continue
     fi
 
-    log "  → $repo"
+    log "  → $repo @ ${commit:0:12}"
     local src_dir="${dep_dir}/${repo}"
-    [ -d "$src_dir" ] || git clone "https://github.com/$d.git" "$src_dir"
+    git_clone_at_commit "$slug" "$commit" "$src_dir"
     build_autotools "$src_dir" --enable-static --disable-shared
     mark_built "$stamp"
   done
@@ -346,20 +416,27 @@ build_git_deps_macos_arch() {
   local dep_dir="${BUILD_DIR}/deps_${arch}"
   mkdir -p "$dep_dir"
 
-  IFS=',' read -r -a deps <<< "$GIT_DEPENDENCIES"
-  for d in "${deps[@]}"; do
-    local repo stamp
-    repo="$(echo "$d" | cut -d'/' -f2)"
+  for entry in "${GIT_DEPENDENCIES[@]}"; do
+    local slug commit repo stamp
+    slug="$(dep_slug "$entry")"
+    commit="$(dep_commit "$entry")"
+    repo="$(dep_name "$entry")"
     stamp="${repo}_${arch}"
+
+    # lzfse uses a cmake-based build; handled separately
+    # if [ "$repo" = "lzfse" ]; then
+    #   build_lzfse_macos_arch "$arch" "$prefix"
+    #   continue
+    # fi
 
     if is_built "$stamp"; then
       skip "$repo ($arch)"
       continue
     fi
 
-    log "  → $repo ($arch)"
+    log "  → $repo ($arch) @ ${commit:0:12}"
     local src_dir="${dep_dir}/${repo}"
-    [ -d "$src_dir" ] || git clone "https://github.com/$d.git" "$src_dir"
+    git_clone_at_commit "$slug" "$commit" "$src_dir"
     build_autotools_for_arch "$arch" "$src_dir" "$prefix"
     mark_built "$stamp"
   done
@@ -435,7 +512,6 @@ elif [ "$PLATFORM" = "macos" ]; then
     out="$INSTALL_PREFIX/${arch}"
     mkdir -p "$sysroot" "$out"
 
-
     # ── pkg-config search paths ──────────────────────────────────────────────────
     export PKG_CONFIG_PATH="$sysroot/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/lib/pkgconfig"
     export PKG_CONFIG_LIBDIR="$sysroot/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/lib/pkgconfig"
@@ -446,6 +522,7 @@ elif [ "$PLATFORM" = "macos" ]; then
 
     build_openssl_macos_arch  "$arch" "$sysroot"
     build_libplist_for_arch   "$arch" "$sysroot"
+    build_lzfse_macos_arch    "$arch" "$sysroot"
     build_git_deps_macos_arch "$arch" "$sysroot"
     build_main_macos_arch     "$arch" "$sysroot" "$out"
   done
