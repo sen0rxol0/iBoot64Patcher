@@ -40,14 +40,6 @@ esac
 # ── CPU count helper ─────────────────────────────────────────────────────────
 ncpu() { nproc 2>/dev/null || sysctl -n hw.logicalcpu; }
 
-# ── pkg-config search paths ──────────────────────────────────────────────────
-export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:/usr/lib/pkgconfig"
-export PKG_CONFIG_LIBDIR="/usr/local/lib/pkgconfig:/usr/lib/pkgconfig"
-export PKG_CONFIG_SYSROOT_DIR="/"
-
-export libgeneral_CFLAGS="-I/usr/local/include"
-export libgeneral_LIBS="-L/usr/local/lib/libgeneral.a"
-
 # ════════════════════════════════════════════════════════════════════════════
 # Generic autotools builder (Linux / system-wide install)
 # ════════════════════════════════════════════════════════════════════════════
@@ -442,6 +434,15 @@ elif [ "$PLATFORM" = "macos" ]; then
     sysroot="${BUILD_DIR}/sysroot_${arch}"
     out="$INSTALL_PREFIX/${arch}"
     mkdir -p "$sysroot" "$out"
+
+
+    # ── pkg-config search paths ──────────────────────────────────────────────────
+    export PKG_CONFIG_PATH="$sysroot/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/lib/pkgconfig"
+    export PKG_CONFIG_LIBDIR="$sysroot/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/lib/pkgconfig"
+    export PKG_CONFIG_SYSROOT_DIR="$sysroot"
+
+    export libgeneral_CFLAGS="-I$sysroot/include"
+    export libgeneral_LIBS="-L$sysroot/lib"
 
     build_openssl_macos_arch  "$arch" "$sysroot"
     build_libplist_for_arch   "$arch" "$sysroot"
