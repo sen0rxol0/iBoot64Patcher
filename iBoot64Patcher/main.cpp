@@ -163,13 +163,8 @@ int main(int argc, const char * argv[]) {
     
     
     for (auto p : patches) {
-        printf("applying patch=%p : ",p._location);
-        for (int i=0; i<p.getPatchSize(); i++) {
-            printf("%02x",((uint8_t*)p.getPatch())[i]);
-        }
-        printf("\n");
-        uint64_t o = (uint64_t)(p._location - ibpf->find_base());
-        memcpy(&iboot_buf[o], p.getPatch(), p.getPatchSize());
+        uint64_t off = (uint64_t)(p._location - ibpf->find_base());
+        memcpy(&iboot_buf[off], p._patch, p._patch_size);
     }
     
     /* Write out to the patched file... */
