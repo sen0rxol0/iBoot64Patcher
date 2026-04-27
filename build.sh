@@ -438,16 +438,14 @@ build_main_macos_arch() {
   local arch="$1"
   local sysroot_prefix="$2"   # where deps were installed for this arch
   local out_prefix="$3"       # where to install the final binary
-
+  
   log "Building iBoot64Patcher ($arch)..."
-
+  
   local sdk build_dir
   sdk="$(xcrun --sdk macosx --show-sdk-path)"
   build_dir="${BUILD_DIR}/build_${arch}"
   mkdir -p "$build_dir"
-
-  # Copy only the project source, excluding build artefacts and caches that
-  # can contain deeply-nested paths long enough to trip cp's NAME_MAX limit.
+  
   mkdir -p "$build_dir/src"
   rsync -a --delete \
     --exclude='.build-deps/' \
@@ -456,27 +454,20 @@ build_main_macos_arch() {
     --exclude='.git/' \
     "$SCRIPT_DIR/" "$build_dir/src/"
   cd "$build_dir/src"
+  
   PKG_CONFIG_PATH="${sysroot_prefix}/lib/pkgconfig" \
   ./autogen.sh \
     --enable-static --disable-shared \
-    --prefix="$sysroot_prefix" \
+    --prefix="$out_prefix" \
     --host="${arch}-apple-darwin" \
     CFLAGS="-arch $arch -isysroot $sdk -mmacosx-version-min=10.13 -I${sysroot_prefix}/include" \
     CXXFLAGS="-arch $arch -isysroot $sdk -mmacosx-version-min=10.13 -I${sysroot_prefix}/include" \
     LDFLAGS="-arch $arch -L${sysroot_prefix}/lib"
   make -j"$(ncpu)"
-
-  # Install the binary into the arch-specific output directory.
-  local bin_path bin_name
-  bin_path="$(find "$build_dir/src" -maxdepth 3 -type f -perm +111 | head -1)"
-  [ -n "$bin_path" ] || die "Could not locate built binary in $build_dir/src"
-  bin_name="$(basename "$bin_path")"
-
-  mkdir -p "$out_prefix/bin"
-  # FIX: binary being copied is not the output binary
-  cp "$bin_path" "$out_prefix/bin/$bin_name"
-  log "  → $out_prefix/bin/$bin_name"
-
+  make install
+  
+  log "  → $out_prefix/bin/iBoot64Patcher"
+  
   cd "$SCRIPT_DIR"
 }
 
