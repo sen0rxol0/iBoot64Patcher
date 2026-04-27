@@ -19,9 +19,9 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <sys/stat.h>
+#include <libpatchfinder/patch.hpp>
 //#include <libpatchfinder/ibootpatchfinder/ibootpatchfinder32.hpp>
 #include <libpatchfinder/ibootpatchfinder/ibootpatchfinder64.hpp>
-
 #define HAS_ARG(x,y) (!strcmp(argv[i], x) && (i + y) < argc)
 
 using namespace tihmstar::patchfinder;
@@ -164,7 +164,8 @@ int main(int argc, const char * argv[]) {
     
     for (auto p : patches) {
         uint64_t off = (uint64_t)(p._location - ibpf->find_base());
-        memcpy(&iboot_buf[off], p._patch, p._patchSize);
+        // memcpy(&iboot_buf[off], p._patch, p._patchSize);
+        memcpy(&iboot_buf[off], p.getPatch(), p.getPatchSize());
     }
     
     /* Write out to the patched file... */
