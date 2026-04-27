@@ -467,13 +467,13 @@ build_main_macos_arch() {
   make -j"$(ncpu)"
 
   # Install the binary into the arch-specific output directory.
-  # -perm /111 (not +111) works with both BSD and GNU find.
   local bin_path bin_name
-  bin_path="$(find "$build_dir/src" -maxdepth 3 -type f -perm /111 | head -1)"
+  bin_path="$(find "$build_dir/src" -maxdepth 3 -type f -perm +111 | head -1)"
   [ -n "$bin_path" ] || die "Could not locate built binary in $build_dir/src"
   bin_name="$(basename "$bin_path")"
 
   mkdir -p "$out_prefix/bin"
+  # FIX: binary being copied is not the output binary
   cp "$bin_path" "$out_prefix/bin/$bin_name"
   log "  → $out_prefix/bin/$bin_name"
 
