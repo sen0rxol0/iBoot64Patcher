@@ -18,8 +18,8 @@ AC_SUBST([VERSION_COMMIT_SHA],    ["m4_esyscmd([git rev-parse HEAD | tr -d '\n']
 AC_PROG_CXX([clang++])
 AC_PROG_CC([clang])
 
-CXXFLAGS+="-std=c++17 -O3 -fPIC"
-CFLAGS+="-std=c11 -fPIC"
+CXXFLAGS="$CXXFLAGS -std=c++17 -O3 -fPIC"
+CFLAGS="$CFLAGS -std=c11 -fPIC"
 
 # Checks for libraries.
 LIBGENERAL_REQUIRES_STR="libgeneral >= 75"
