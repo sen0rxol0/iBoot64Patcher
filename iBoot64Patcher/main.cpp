@@ -164,8 +164,8 @@ int main(int argc, const char * argv[]) {
     
     for (auto p : patches) {
         uint64_t off = (uint64_t)(p._location - ibpf->find_base());
-        // memcpy(&iboot_buf[off], p._patch, p._patchSize);
-        memcpy(&iboot_buf[off], p.getPatch(), p.getPatchSize());
+        memcpy(&iboot_buf[off], p._patch, p._patchSize);
+        //memcpy(&iboot_buf[off], p.getPatch(), p.getPatchSize());
     }
     
     /* Write out to the patched file... */
