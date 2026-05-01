@@ -105,7 +105,6 @@ int main(int argc, const char * argv[]) {
         auto patch = ibpf->get_sigcheck_patch();
         patches.insert(patches.begin(), patch.begin(), patch.end());
     } catch (tihmstar::exception &e) {
-        printf("Error doing patch_rsa_check()!\n");
         return -1;
     }
     printf("Added sigcheck_patch\n");
@@ -117,7 +116,6 @@ int main(int argc, const char * argv[]) {
             auto patch = ibpf->get_debug_enabled_patch();
             patches.insert(patches.begin(), patch.begin(), patch.end());
         } catch (...) {
-            printf("Error doing patch_debug_enabled()!\n");
             return -1;
         }
         printf("Added debug_enabled_patch\n");
@@ -127,7 +125,6 @@ int main(int argc, const char * argv[]) {
                 auto patch = ibpf->get_boot_arg_patch(custom_boot_args);
                 patches.insert(patches.begin(), patch.begin(), patch.end());
             } catch (tihmstar::exception &e) {
-                printf("Error doing patch_boot_args()!\n");
                 return -1;
             }
             printf("Added boot_arg_patch(%s)\n", custom_boot_args);
@@ -141,7 +138,6 @@ int main(int argc, const char * argv[]) {
                 auto patch = ibpf->get_cmd_handler_patch(cmd_handler_str, cmd_handler_ptr);
                 patches.insert(patches.begin(), patch.begin(), patch.end());
             } catch (tihmstar::exception &e) {
-                printf("Error doing patch_cmd_handler()!\n");
                 return -1;
             }
             printf("Added cmd_handler_patch(%s,0x%016llx)\n", cmd_handler_str,cmd_handler_ptr);
@@ -152,7 +148,6 @@ int main(int argc, const char * argv[]) {
                 auto patch = ibpf->get_unlock_nvram_patch();
                 patches.insert(patches.begin(), patch.begin(), patch.end());
             } catch (tihmstar::exception &e) {
-                printf("Error doing get_unlock_nvram_patch()!\n");
                 return -1;
             }
             printf("Added unlock_nvram_patch\n");
@@ -161,7 +156,6 @@ int main(int argc, const char * argv[]) {
                 auto patch = ibpf->get_freshnonce_patch();
                 patches.insert(patches.begin(), patch.begin(), patch.end());
             } catch (tihmstar::exception &e) {
-                printf("Error doing get_freshnonce_patch()!\n");
                 return -1;
             }
             printf("Added freshnonce_patch\n");
