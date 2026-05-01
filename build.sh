@@ -67,6 +67,17 @@ git_clone_at_commit() {
     git clone "https://github.com/${slug}.git" "$dest"
     git -C "$dest" checkout "$commit"
   fi
+
+  # ── Patching Logic ──
+  if [[ "$slug" == *"libpatchfinder"* ]]; then
+    local specific_patch="${SCRIPT_DIR}/libpatchfinder-ibootpatchfinder64_base_freshnonce.patch"
+    
+    if [ -f "$specific_patch" ]; then
+      log "Applying freshnonce patch to libpatchfinder..."
+      # -p1 ignores the a/ and b/ directory prefixes
+      patch -p1 -d "$dest" < "$specific_patch" || die "Failed to patch libpatchfinder"
+    fi
+  fi
 }
 
 # ── Parse "owner/repo@commit" entry ─────────────────────────────────────────
