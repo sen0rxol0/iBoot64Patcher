@@ -56,64 +56,81 @@ int main(int argc, const char * argv[]) {
         }
     }
     
-    const char *input_path = argv[1];
-    const char *output_path = argv[2];
+    const char *inputPath = argv[1];
+    const char *outputPath = argv[2];
 
     FILE *fp = nullptr;
 
     /* Read decrypted input file into buffer... */
-    fp = fopen(input_path, "rb+");
+    fp = fopen(inputPath, "rb+");
     
     if (!fp) {
-        printf("Unable to open %s!\n", input_path);
+        printf("Unable to open %s!\n", inputPath);
         return -1;
     }
 
     struct stat st{0};
     
-    if (stat(input_path, &st) < 0) {
-        printf("Error getting size for %s!\n", input_path);
+    if (stat(inputPath, &st) < 0) {
+        printf("Error getting size for %s!\n", inputPath);
         return -1;
     }
 
-    size_t buf_size = st.st_size;
-    char *iboot_buf = (char *) malloc(buf_size);
+    size_t ibootBufSize = st.st_size;
+    char *ibootBuf = (char *) malloc(ibootBufSize);
     
-    if (!iboot_buf) {
-        printf("Out of memory while allocating region for %s!\n", input_path);
+    if (!ibootBuf) {
+        printf("Out of memory while allocating region for %s!\n", inputPath);
         fclose(fp);
         return -1;
     }
 
-    fread(iboot_buf, 1, buf_size, fp);
+    fread(ibootBuf, 1, ibootBufSize, fp);
     fclose(fp);
-    
-    ibootpatchfinder *ibpf = ibootpatchfinder64::make_ibootpatchfinder64(iboot_buf, buf_size);
 
+    ibootpatchfinder64 *ibpf = NULL;
     std::vector<patch> patches;
+
+    printf("%s: Starting iBoot64Patch!\n", __FUNCTION__);
+    try {
+        ibpf = ibootpatchfinder64::make_ibootpatchfinder64(ibootBuf, ibootBufSize);
+    } catch (...) {
+        printf("Failed initing ibootpatchfinder64!\n");
+        return -1;
+    }
+    printf("Inited ibootpatchfinder64!\n");
+
+    /* All loaders have the RSA check. */
+    try {
+        auto patch = ibpf->get_sigcheck_patch();
+        patches.insert(patches.begin(), patch.begin(), patch.end());
+    } catch (tihmstar::exception &e) {
+        printf("Error doing patch_rsa_check()!\n");
+        return -1;
+    }
+    printf("Added sigcheck_patch\n");
     
     /* Check to see if the loader has a kernel load routine before trying to apply custom boot args + debug-enabled override. */
     if(ibpf->has_kernel_load()) {
+        /* Only bootloaders with the kernel load routines pass the DeviceTree. */
+        try {
+            auto patch = ibpf->get_debug_enabled_patch();
+            patches.insert(patches.begin(), patch.begin(), patch.end());
+        } catch (...) {
+            printf("Error doing patch_debug_enabled()!\n");
+            return -1;
+        }
+        printf("Added debug_enabled_patch\n");
+
         if(custom_boot_args) {
             try {
-                printf("getting get_boot_arg_patch(%s) patch\n", custom_boot_args);
                 auto patch = ibpf->get_boot_arg_patch(custom_boot_args);
                 patches.insert(patches.begin(), patch.begin(), patch.end());
             } catch (tihmstar::exception &e) {
                 printf("Error doing patch_boot_args()!\n");
                 return -1;
             }
-        }
-        
-        
-        /* Only bootloaders with the kernel load routines pass the DeviceTree. */
-        try {
-            printf("getting get_debug_enabled_patch() patch\n");
-            auto patch = ibpf->get_debug_enabled_patch();
-            patches.insert(patches.begin(), patch.begin(), patch.end());
-        } catch (...) {
-            printf("Error doing patch_debug_enabled()!\n");
-            return -1;
+            printf("Added boot_arg_patch(%s)\n", custom_boot_args);
         }
     }
     
@@ -121,66 +138,60 @@ int main(int argc, const char * argv[]) {
     if(ibpf->has_recovery_console()) {
         if (cmd_handler_str && cmd_handler_ptr) {
             try {
-                printf("getting get_cmd_handler_patch(%s,0x%016llx) patch\n", cmd_handler_str,cmd_handler_ptr);
                 auto patch = ibpf->get_cmd_handler_patch(cmd_handler_str, cmd_handler_ptr);
                 patches.insert(patches.begin(), patch.begin(), patch.end());
             } catch (tihmstar::exception &e) {
-                printf("Error doing patch_cmd_handler()! (%s)\n", e.what());
+                printf("Error doing patch_cmd_handler()!\n");
                 return -1;
             }
+            printf("Added cmd_handler_patch(%s,0x%016llx)\n", cmd_handler_str,cmd_handler_ptr);
         }
         
         if (flags & FLAG_UNLOCK_NVRAM) {
             try {
-                printf("getting get_unlock_nvram_patch() patch\n");
                 auto patch = ibpf->get_unlock_nvram_patch();
                 patches.insert(patches.begin(), patch.begin(), patch.end());
             } catch (tihmstar::exception &e) {
-                printf("Error doing get_unlock_nvram_patch()! (%s)\n", e.what());
+                printf("Error doing get_unlock_nvram_patch()!\n");
                 return -1;
             }
+            printf("Added unlock_nvram_patch\n");
 
             try {
-                printf("getting get_freshnonce_patch() patch\n");
                 auto patch = ibpf->get_freshnonce_patch();
                 patches.insert(patches.begin(), patch.begin(), patch.end());
             } catch (tihmstar::exception &e) {
-                printf("Error doing get_freshnonce_patch()! (%s)\n", e.what());
+                printf("Error doing get_freshnonce_patch()!\n");
                 return -1;
             }
+            printf("Added freshnonce_patch\n");
         }
     }
     
-    /* All loaders have the RSA check. */
-    try {
-        printf("getting get_sigcheck_patch() patch\n");
-        auto patch = ibpf->get_sigcheck_patch();
-        patches.insert(patches.begin(), patch.begin(), patch.end());
-    } catch (tihmstar::exception &e) {
-        printf("Error doing patch_rsa_check()! (%s)\n", e.what());
-        return -1;
-    }
-    
-    
     for (auto p : patches) {
         uint64_t off = (uint64_t)(p._location - ibpf->find_base());
-        memcpy(&iboot_buf[off], p._patch, p._patchSize);
+        printf("%s: Applying patch=%p : ",__FUNCTION__,(void*)p._location);
+        for (int i=0; i<p._patchSize; i++) {
+            printf("%02x",((uint8_t*)p._patch)[i]);
+        }
+        printf("\n");
+        memcpy(&ibootBuf[off], p._patch, p._patchSize);
         //memcpy(&iboot_buf[off], p.getPatch(), p.getPatchSize());
     }
     
     /* Write out to the patched file... */
-   fp = fopen(output_path, "wb+");
+   fp = fopen(outputPath, "wb+");
     
     if(!fp) {
-        printf("Unable to open file %s!\n", output_path);
+        printf("Unable to open file %s!\n", outputPath);
         return -1;
     }
     
-    printf("Writing out patched file to %s...\n", output_path);
-    fwrite(iboot_buf, buf_size, 1, fp);
+    printf("Writing out patched file to %s...\n", outputPath);
+    fwrite(ibootBuf, ibootBufSize, 1, fp);
     fflush(fp);
     fclose(fp);
-    free(iboot_buf);
+    free(ibootBuf);
     printf("Quitting...\n");
     
     return 0;
