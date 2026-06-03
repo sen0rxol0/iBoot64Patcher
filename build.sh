@@ -13,7 +13,7 @@ GIT_DEPENDENCIES=(
   "tihmstar/libinsn@78a4b3a8832bbc447cc0b6f038d8ed7d84660c98"
   "tihmstar/img3tool@53a2db92d6c79cae136456f5245844b0d90ce27c"
   "tihmstar/img4tool@f42f98e892517c8adfc84536afbd3b51dbd43aba"
-  "tihmstar/libpatchfinder@26ff1ed8c027fc6325149ba88ad17210b05a7781"
+  "tihmstar/libpatchfinder@0141ec2cca153ec45112fade1191b1310b7060bb"
 )
 
 INSTALL_PREFIX="${1:-$(pwd)/buildroot}"
